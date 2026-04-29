@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "mediacast-netcatalog"
-version = "0.1.0"
+version = "0.2.0.dev0"
 description = "Vendor command catalog + version matcher + protocol probe for multi-vendor network automation."
 readme = "README.md"
 license = { text = "MIT OR Apache-2.0" }

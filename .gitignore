@@ -47,3 +47,6 @@ htmlcov/
 
 # Generated docs
 /docs/_build/
+
+# Transient lockfiles from one-off `uv run --with X ...` invocations
+/uv.lock

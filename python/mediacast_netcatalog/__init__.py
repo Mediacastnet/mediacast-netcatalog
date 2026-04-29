@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from enum import Enum
 
-from ._native import Catalog, __version__
+from ._native import Catalog, __version__, probe_device
 
-__all__ = ["Catalog", "CommandType", "__version__"]
+__all__ = ["Catalog", "CommandType", "probe_device", "__version__"]
 
 
 class CommandType(str, Enum):

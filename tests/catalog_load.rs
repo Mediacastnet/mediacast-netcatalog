@@ -15,7 +15,7 @@ fn bundled_catalog_loads() {
     ];
     for v in expected {
         assert!(
-            vendors.iter().any(|s| *s == v),
+            vendors.contains(&v),
             "expected vendor '{}' present (have {:?})", v, vendors,
         );
     }

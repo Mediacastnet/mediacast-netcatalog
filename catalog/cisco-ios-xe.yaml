@@ -183,7 +183,7 @@ commands:
       - applies_to: ">=15.0"
         cli: "show mac address-table"
         sample_output: |
-                    Mac Address Table
+          Mac Address Table
           -------------------------------------------
 
           Vlan    Mac Address       Type        Ports

@@ -296,14 +296,34 @@ pub struct GnmiMapping {
 pub struct EapiMapping {
     /// JSON-RPC method (typically `"runCmds"`).
     pub method: String,
-    /// Commands to execute.
-    pub commands: Vec<String>,
+    /// Single CLI command to execute. Most catalog entries are a single
+    /// command; for multi-command eAPI batches use [`EapiMapping::commands`].
+    #[serde(default)]
+    pub cli: Option<String>,
+    /// Multi-command eAPI batch (alternative to `cli`).
+    #[serde(default)]
+    pub commands: Option<Vec<String>>,
     /// Output format (`"json"` or `"text"`).
     #[serde(default)]
     pub format: Option<String>,
     /// Minimum firmware version.
     #[serde(default)]
     pub firmware_required: Option<String>,
+}
+
+impl EapiMapping {
+    /// Normalize `cli` / `commands` into a single command list. Returns
+    /// `commands` if set, otherwise `cli` wrapped in a single-element
+    /// vec, otherwise empty.
+    pub fn command_list(&self) -> Vec<&str> {
+        if let Some(commands) = &self.commands {
+            commands.iter().map(String::as_str).collect()
+        } else if let Some(cli) = &self.cli {
+            vec![cli.as_str()]
+        } else {
+            Vec::new()
+        }
+    }
 }
 
 /// Vendor proprietary REST mapping (AOS-CX, ProCurve).

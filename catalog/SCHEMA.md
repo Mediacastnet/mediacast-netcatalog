@@ -198,10 +198,17 @@ commands:
         firmware_required: ">=4.20"
       eapi:                                    # ← extension
         method: "runCmds"
-        commands: ["show ip arp"]
+        cli: "show ip arp"          # single command (most entries)
+        # OR for multi-command eAPI batches:
+        # commands: ["show ip arp", "show mac address-table"]
         format: "json"
         firmware_required: ">=4.13"
 ```
+
+Both `cli` (single string) and `commands` (array of strings) are valid;
+loaders should accept either. Most catalog entries use `cli` because eAPI
+calls in practice almost always wrap a single command. Use the Rust
+`EapiMapping::command_list()` helper to normalize.
 
 ### Top-level extensions: `rest_api`, `snmp`, `dashboard_api`
 

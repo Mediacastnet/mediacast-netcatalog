@@ -18,10 +18,8 @@
 pub mod catalog;
 pub mod command_types;
 pub mod error;
-pub mod version;
-
-#[cfg(feature = "bin")]
 pub mod probe;
+pub mod version;
 
 #[cfg(feature = "python")]
 mod python;
@@ -29,4 +27,5 @@ mod python;
 pub use catalog::{Catalog, CommandEntry, ProtocolAlternatives, VendorFile};
 pub use command_types::CommandType;
 pub use error::{Error, Result};
+pub use probe::{probe_device, ProbeConfig, ProbeReport};
 pub use version::{FirmwareVersion, VersionRange};
