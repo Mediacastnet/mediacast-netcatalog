@@ -44,7 +44,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   indentation that broke the YAML literal block — re-indented to match
   surrounding entries. All seven bundled catalog files now parse cleanly
   via `serde_yaml`.
-- Clippy lint cleanup (`io_other_error`, `manual_contains`).
+- Clippy lint cleanup (`io_other_error`, `manual_contains`,
+  `unnecessary_map_or` — the catalog version-matcher's `map_or(true,
+  ...)` is now `is_none_or(...)`).
+- **`.github/workflows/ci.yml`**: yamllint step's `run:` value was a
+  plain YAML scalar containing `{`, which the GitHub Actions validator
+  rejected at dispatch time (every push completed in 0s with 0 jobs and
+  no logs). Converted to a `|` block scalar.
+- **`.github/workflows/release.yml`**: the `cargo-publish` step's
+  `if-then-else` swallowed real publish failures as a misleading
+  `cargo publish failed — likely version already published` warning.
+  Now distinguishes "already uploaded" (idempotent re-run, exits 0) from
+  any other failure (hard-fails the pipeline with the full cargo error).
+- Dropped `rust-version = "1.78"` MSRV anchor from `Cargo.toml` and the
+  matching `1.78` matrix entry from `ci.yml`. Transitive deps (`toml_datetime`
+  needs edition2024 ≥ 1.85, `icu_*` 2.2 needs ≥ 1.86) churn faster than
+  is worth chasing for a research scaffold. Re-introduce a stable MSRV
+  anchor at v1.0 when the API stabilizes and downstream consumers
+  actually need a floor.
 
 ### Changed
 

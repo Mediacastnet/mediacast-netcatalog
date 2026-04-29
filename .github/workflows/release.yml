@@ -63,17 +63,30 @@ jobs:
     name: Publish to crates.io
     needs: [verify, cargo-test]
     runs-on: ubuntu-latest
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Publish (skip if already published)
+      - name: Publish to crates.io
         run: |
-          if cargo publish --token "${{ secrets.CARGO_REGISTRY_TOKEN }}" --no-verify; then
+          set +e
+          OUT=$(cargo publish --no-verify 2>&1)
+          STATUS=$?
+          echo "$OUT"
+          if [ $STATUS -eq 0 ]; then
             echo "Published to crates.io"
-          else
-            echo "::warning::cargo publish failed — likely version already published. Continuing."
+            exit 0
           fi
+          # Idempotent re-runs: if the version is already on crates.io, treat as success.
+          if echo "$OUT" | grep -qE "(crate version .* is already uploaded|already exists)"; then
+            echo "::notice::Version already published to crates.io; skipping (idempotent re-run)"
+            exit 0
+          fi
+          # Anything else is a real failure — fail loudly so the release pipeline halts.
+          echo "::error::cargo publish failed (exit $STATUS) — see log above for the actual error"
+          exit $STATUS
 
   build-wheels:
     name: Wheel — ${{ matrix.os }} / ${{ matrix.target }}

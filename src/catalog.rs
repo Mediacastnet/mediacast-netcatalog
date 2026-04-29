@@ -93,7 +93,7 @@ impl Catalog {
                 continue;
             }
             let score = range.specificity();
-            if best.map_or(true, |(_, s)| score > s) {
+            if best.is_none_or(|(_, s)| score > s) {
                 best = Some((entry, score));
             }
         }

@@ -2,7 +2,10 @@
 name = "mediacast-netcatalog"
 version = "0.2.0"
 edition = "2021"
-rust-version = "1.78"
+# No `rust-version` anchor pre-1.0 — transitive deps churn faster than
+# is worth chasing for a research scaffold (e.g., toml_datetime needs
+# edition2024 ≥ 1.85, icu_* 2.2 needs ≥ 1.86). Revisit at v1.0 when the
+# API stabilizes and downstream consumers actually need a stable floor.
 description = "Vendor command catalog + version matcher + protocol probe for multi-vendor network automation."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Mediacastnet/mediacast-netcatalog"

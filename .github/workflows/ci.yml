@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        toolchain: [stable, "1.78"]
+        toolchain: [stable]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
@@ -76,4 +76,5 @@ jobs:
       - name: Install yamllint
         run: pip install yamllint
       - name: Lint catalog/
-        run: yamllint -d "{extends: relaxed, rules: {line-length: disable}}" catalog/
+        run: |
+          yamllint -d "{extends: relaxed, rules: {line-length: disable}}" catalog/
