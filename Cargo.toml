@@ -1,6 +1,6 @@
 [package]
 name = "mediacast-netcatalog"
-version = "0.2.0-dev"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.78"
 description = "Vendor command catalog + version matcher + protocol probe for multi-vendor network automation."

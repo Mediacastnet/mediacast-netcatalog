@@ -53,10 +53,11 @@ which programmatic interfaces a real device actually exposes.
 
 ## Status
 
-**v0.1 — research / scaffold.** The catalog YAML is research-grade and
-already drives planning inside [Mediacast NetCaster](https://github.com/Mediacastnet).
-The Rust loader, version matcher, and PyO3 bindings are under active
-development. **API is unstable until v0.2.**
+**v0.2 — research data + working library.** Citation-backed catalog YAML
+for seven vendors. Rust loader + version matcher + sync stdlib-only
+protocol probe, all with PyO3 Python bindings. First production consumer
+is [Mediacast NetCaster](https://github.com/Mediacastnet/netcaster).
+**API may still evolve toward v1.0; pin a specific minor version.**
 
 ## Quick start (Rust)
 
