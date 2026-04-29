@@ -13,13 +13,34 @@ use std::path::Path;
 /// works without any filesystem access. Order is alphabetical; the loader
 /// is order-independent.
 const BUNDLED: &[(&str, &str)] = &[
-    ("arista-eos.yaml", include_str!("../catalog/arista-eos.yaml")),
-    ("aruba-aoscx.yaml", include_str!("../catalog/aruba-aoscx.yaml")),
-    ("cisco-ios-xe.yaml", include_str!("../catalog/cisco-ios-xe.yaml")),
-    ("cisco-nxos.yaml", include_str!("../catalog/cisco-nxos.yaml")),
-    ("hpe-procurve.yaml", include_str!("../catalog/hpe-procurve.yaml")),
-    ("juniper-junos.yaml", include_str!("../catalog/juniper-junos.yaml")),
-    ("meraki-mx-ms.yaml", include_str!("../catalog/meraki-mx-ms.yaml")),
+    (
+        "arista-eos.yaml",
+        include_str!("../catalog/arista-eos.yaml"),
+    ),
+    (
+        "aruba-aoscx.yaml",
+        include_str!("../catalog/aruba-aoscx.yaml"),
+    ),
+    (
+        "cisco-ios-xe.yaml",
+        include_str!("../catalog/cisco-ios-xe.yaml"),
+    ),
+    (
+        "cisco-nxos.yaml",
+        include_str!("../catalog/cisco-nxos.yaml"),
+    ),
+    (
+        "hpe-procurve.yaml",
+        include_str!("../catalog/hpe-procurve.yaml"),
+    ),
+    (
+        "juniper-junos.yaml",
+        include_str!("../catalog/juniper-junos.yaml"),
+    ),
+    (
+        "meraki-mx-ms.yaml",
+        include_str!("../catalog/meraki-mx-ms.yaml"),
+    ),
 ];
 
 /// In-memory catalog. Indexed by vendor identifier (`cisco_ios`, `aruba_aoscx`,
@@ -34,8 +55,11 @@ impl Catalog {
     pub fn load_bundled() -> Result<Self> {
         let mut cat = Catalog::default();
         for (name, body) in BUNDLED {
-            let parsed: VendorFile = serde_yaml::from_str(body)
-                .map_err(|source| Error::CatalogParse { file: (*name).to_owned(), source })?;
+            let parsed: VendorFile =
+                serde_yaml::from_str(body).map_err(|source| Error::CatalogParse {
+                    file: (*name).to_owned(),
+                    source,
+                })?;
             cat.vendors.insert(parsed.vendor.clone(), parsed);
         }
         Ok(cat)
@@ -52,7 +76,11 @@ impl Catalog {
                 continue;
             }
             let body = std::fs::read_to_string(&path)?;
-            let name = path.file_name().and_then(|s| s.to_str()).unwrap_or("?").to_owned();
+            let name = path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("?")
+                .to_owned();
             let parsed: VendorFile = serde_yaml::from_str(&body)
                 .map_err(|source| Error::CatalogParse { file: name, source })?;
             cat.vendors.insert(parsed.vendor.clone(), parsed);
@@ -78,7 +106,10 @@ impl Catalog {
         firmware: &str,
         command: CommandType,
     ) -> Result<Option<&CommandEntry>> {
-        let vf = self.vendors.get(vendor).ok_or_else(|| Error::UnknownVendor(vendor.to_owned()))?;
+        let vf = self
+            .vendors
+            .get(vendor)
+            .ok_or_else(|| Error::UnknownVendor(vendor.to_owned()))?;
         let fw = FirmwareVersion::parse(firmware)?;
 
         let Some(cmd) = vf.commands.iter().find(|c| c.command_type == command) else {

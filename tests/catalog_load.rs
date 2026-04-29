@@ -7,16 +7,26 @@ use mediacast_netcatalog::{Catalog, CommandType};
 fn bundled_catalog_loads() {
     let catalog = Catalog::load_bundled().expect("bundled catalog must load");
     let vendors: Vec<&str> = catalog.vendors().collect();
-    assert!(!vendors.is_empty(), "bundled catalog has at least one vendor");
+    assert!(
+        !vendors.is_empty(),
+        "bundled catalog has at least one vendor"
+    );
 
     let expected = [
-        "cisco_ios", "cisco_nxos", "aruba_aoscx", "juniper_junos",
-        "arista_eos", "hpe_procurve", "meraki_ms",
+        "cisco_ios",
+        "cisco_nxos",
+        "aruba_aoscx",
+        "juniper_junos",
+        "arista_eos",
+        "hpe_procurve",
+        "meraki_ms",
     ];
     for v in expected {
         assert!(
             vendors.contains(&v),
-            "expected vendor '{}' present (have {:?})", v, vendors,
+            "expected vendor '{}' present (have {:?})",
+            v,
+            vendors,
         );
     }
 }
@@ -29,7 +39,9 @@ fn every_vendor_covers_every_command_type() {
         for &cmd in CommandType::all() {
             assert!(
                 vf.commands.iter().any(|c| c.command_type == cmd),
-                "vendor '{}' is missing command type {:?}", vendor_id, cmd,
+                "vendor '{}' is missing command type {:?}",
+                vendor_id,
+                cmd,
             );
         }
     }

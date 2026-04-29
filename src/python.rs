@@ -46,7 +46,10 @@ impl PyCatalog {
         let cmd = parse_command_type(command)?;
         match self.inner.lookup(vendor, firmware, cmd) {
             Ok(Some(entry)) => Ok(entry.cli.clone()),
-            Ok(None) => Err(PyKeyError::new_err(format!("no entry for {} {:?}", vendor, cmd))),
+            Ok(None) => Err(PyKeyError::new_err(format!(
+                "no entry for {} {:?}",
+                vendor, cmd
+            ))),
             Err(e) => Err(PyValueError::new_err(e.to_string())),
         }
     }
@@ -54,7 +57,8 @@ impl PyCatalog {
 
 fn parse_command_type(s: &str) -> PyResult<CommandType> {
     let v: serde_yaml::Value = serde_yaml::Value::String(s.to_owned());
-    serde_yaml::from_value(v).map_err(|_| PyValueError::new_err(format!("unknown CommandType: {}", s)))
+    serde_yaml::from_value(v)
+        .map_err(|_| PyValueError::new_err(format!("unknown CommandType: {}", s)))
 }
 
 /// Run the protocol-capability probe against `host`. Returns a dict

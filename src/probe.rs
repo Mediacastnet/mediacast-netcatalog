@@ -125,7 +125,9 @@ pub fn probe_device(host: &str, vendor: &str, cfg: &ProbeConfig) -> Result<Probe
     if !cfg.skipped("ssh") {
         match probe_ssh_banner(host, SSH_PORT, cfg.timeout) {
             Ok(Some(banner)) => report.ssh_banner = Some(banner),
-            Ok(None) => report.diagnostics.push(format!("ssh:{SSH_PORT} reachable but no banner read")),
+            Ok(None) => report
+                .diagnostics
+                .push(format!("ssh:{SSH_PORT} reachable but no banner read")),
             Err(e) => report.diagnostics.push(format!("ssh:{SSH_PORT} {e}")),
         }
     }
@@ -134,11 +136,15 @@ pub fn probe_device(host: &str, vendor: &str, cfg: &ProbeConfig) -> Result<Probe
         report.netconf_available = Some(match probe_ssh_banner(host, NETCONF_PORT, cfg.timeout) {
             Ok(Some(_)) => true,
             Ok(None) => {
-                report.diagnostics.push(format!("netconf:{NETCONF_PORT} reachable but no SSH banner"));
+                report.diagnostics.push(format!(
+                    "netconf:{NETCONF_PORT} reachable but no SSH banner"
+                ));
                 false
             }
             Err(e) => {
-                report.diagnostics.push(format!("netconf:{NETCONF_PORT} {e}"));
+                report
+                    .diagnostics
+                    .push(format!("netconf:{NETCONF_PORT} {e}"));
                 false
             }
         });
@@ -158,7 +164,9 @@ pub fn probe_device(host: &str, vendor: &str, cfg: &ProbeConfig) -> Result<Probe
         report.restconf_available = Some(match probe_tcp_open(host, RESTCONF_PORT, cfg.timeout) {
             Ok(()) => true,
             Err(e) => {
-                report.diagnostics.push(format!("restconf:{RESTCONF_PORT} {e}"));
+                report
+                    .diagnostics
+                    .push(format!("restconf:{RESTCONF_PORT} {e}"));
                 false
             }
         });
@@ -175,7 +183,9 @@ pub fn probe_device(host: &str, vendor: &str, cfg: &ProbeConfig) -> Result<Probe
 fn connect(host: &str, port: u16, timeout: Duration) -> std::io::Result<TcpStream> {
     let addrs: Vec<_> = (host, port)
         .to_socket_addrs()
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::AddrNotAvailable, format!("DNS: {e}")))?
+        .map_err(|e| {
+            std::io::Error::new(std::io::ErrorKind::AddrNotAvailable, format!("DNS: {e}"))
+        })?
         .collect();
     if addrs.is_empty() {
         return Err(std::io::Error::new(
@@ -243,7 +253,10 @@ mod tests {
 
     #[test]
     fn config_skip_is_case_insensitive() {
-        let cfg = ProbeConfig { skip: vec!["SSH".into(), "Netconf".into()], ..Default::default() };
+        let cfg = ProbeConfig {
+            skip: vec!["SSH".into(), "Netconf".into()],
+            ..Default::default()
+        };
         assert!(cfg.skipped("ssh"));
         assert!(cfg.skipped("netconf"));
         assert!(!cfg.skipped("gnmi"));
@@ -266,7 +279,8 @@ mod tests {
             timeout: Duration::from_millis(250),
             ..Default::default()
         };
-        let report = probe_device("198.51.100.1", "cisco_ios", &cfg).expect("probe never errors at lib level");
+        let report = probe_device("198.51.100.1", "cisco_ios", &cfg)
+            .expect("probe never errors at lib level");
         assert_eq!(report.host, "198.51.100.1");
         assert_eq!(report.vendor, "cisco_ios");
         // Every probe should resolve to Some(false) or None — never Some(true) for an unreachable host.
@@ -275,14 +289,22 @@ mod tests {
         assert!(report.restconf_available != Some(true));
         assert!(report.ssh_banner.is_none());
         // Diagnostics should be populated for the unreachable probes.
-        assert!(!report.diagnostics.is_empty(), "expected at least one diagnostic for unreachable host");
+        assert!(
+            !report.diagnostics.is_empty(),
+            "expected at least one diagnostic for unreachable host"
+        );
     }
 
     #[test]
     fn probe_respects_skip_list() {
         let cfg = ProbeConfig {
             timeout: Duration::from_millis(250),
-            skip: vec!["ssh".into(), "netconf".into(), "gnmi".into(), "restconf".into()],
+            skip: vec![
+                "ssh".into(),
+                "netconf".into(),
+                "gnmi".into(),
+                "restconf".into(),
+            ],
         };
         let report = probe_device("198.51.100.1", "cisco_ios", &cfg).unwrap();
         // All probes skipped → all None.
@@ -290,6 +312,9 @@ mod tests {
         assert_eq!(report.gnmi_available, None);
         assert_eq!(report.restconf_available, None);
         assert_eq!(report.ssh_banner, None);
-        assert!(report.diagnostics.is_empty(), "no probes ran, no diagnostics expected");
+        assert!(
+            report.diagnostics.is_empty(),
+            "no probes ran, no diagnostics expected"
+        );
     }
 }

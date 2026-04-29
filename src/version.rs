@@ -56,7 +56,11 @@ impl FirmwareVersion {
         // Strip Aruba-style family prefix.
         let (family_prefix, body) = AOSCX_PREFIXES
             .iter()
-            .find_map(|p| trimmed.strip_prefix(p).map(|rest| (Some(p.trim_end_matches('.').to_owned()), rest)))
+            .find_map(|p| {
+                trimmed
+                    .strip_prefix(p)
+                    .map(|rest| (Some(p.trim_end_matches('.').to_owned()), rest))
+            })
             .unwrap_or((None, trimmed));
 
         // Normalize Cisco-style `9.3(5)` → `9.3.5`. Bracket suffix becomes patch.
@@ -71,7 +75,8 @@ impl FirmwareVersion {
         }
 
         let parse_u32 = |idx: usize| -> Result<u32> {
-            parts.get(idx)
+            parts
+                .get(idx)
                 .copied()
                 .unwrap_or("0")
                 .parse::<u32>()
@@ -126,17 +131,23 @@ impl VersionRange {
     pub fn parse(expr: &str) -> Result<Self> {
         let trimmed = expr.trim();
         if trimmed == "*" {
-            return Ok(Self { clauses: vec![], wildcard: true, raw: expr.to_owned() });
+            return Ok(Self {
+                clauses: vec![],
+                wildcard: true,
+                raw: expr.to_owned(),
+            });
         }
 
         let mut clauses = Vec::new();
         for disj in trimmed.split("||") {
             let mut conj = Vec::new();
             for piece in disj.split(',') {
-                conj.push(parse_bound(piece.trim()).map_err(|reason| Error::BadVersionRange {
-                    expr: expr.to_owned(),
-                    reason,
-                })?);
+                conj.push(
+                    parse_bound(piece.trim()).map_err(|reason| Error::BadVersionRange {
+                        expr: expr.to_owned(),
+                        reason,
+                    })?,
+                );
             }
             if !conj.is_empty() {
                 clauses.push(conj);
@@ -150,7 +161,11 @@ impl VersionRange {
             });
         }
 
-        Ok(Self { clauses, wildcard: false, raw: expr.to_owned() })
+        Ok(Self {
+            clauses,
+            wildcard: false,
+            raw: expr.to_owned(),
+        })
     }
 
     /// Test whether a firmware version satisfies this range.
@@ -158,7 +173,9 @@ impl VersionRange {
         if self.wildcard {
             return true;
         }
-        self.clauses.iter().any(|conj| conj.iter().all(|b| b.matches(v)))
+        self.clauses
+            .iter()
+            .any(|conj| conj.iter().all(|b| b.matches(v)))
     }
 
     /// A heuristic specificity score — higher = more specific.
@@ -212,7 +229,12 @@ impl Bound {
                 return false;
             }
         }
-        let cmp = (v.major, v.minor, v.patch, v.build).cmp(&(other.major, other.minor, other.patch, other.build));
+        let cmp = (v.major, v.minor, v.patch, v.build).cmp(&(
+            other.major,
+            other.minor,
+            other.patch,
+            other.build,
+        ));
         match self {
             Bound::Ge(_) => cmp.is_ge(),
             Bound::Gt(_) => cmp.is_gt(),

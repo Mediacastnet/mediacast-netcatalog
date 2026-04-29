@@ -7,7 +7,11 @@ use mediacast_netcatalog::probe::{probe_device, ProbeConfig};
 use std::time::Duration;
 
 #[derive(Parser)]
-#[command(name = "mediacast-netcatalog", version, about = "Mediacast NetCatalog CLI")]
+#[command(
+    name = "mediacast-netcatalog",
+    version,
+    about = "Mediacast NetCatalog CLI"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Cmd,
@@ -36,7 +40,12 @@ enum Cmd {
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
-        Cmd::Probe { host, vendor, timeout, skip } => {
+        Cmd::Probe {
+            host,
+            vendor,
+            timeout,
+            skip,
+        } => {
             let cfg = ProbeConfig {
                 timeout: Duration::from_secs(timeout),
                 skip,
