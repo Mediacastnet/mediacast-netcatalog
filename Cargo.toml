@@ -1,0 +1,77 @@
+[package]
+name = "mediacast-netcatalog"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.78"
+description = "Vendor command catalog + version matcher + protocol probe for multi-vendor network automation."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Mediacastnet/mediacast-netcatalog"
+homepage = "https://github.com/Mediacastnet/mediacast-netcatalog"
+documentation = "https://docs.rs/mediacast-netcatalog"
+readme = "README.md"
+keywords = ["networking", "cisco", "aruba", "juniper", "automation"]
+categories = ["network-programming", "parser-implementations", "api-bindings"]
+authors = ["Robare Pruyn <robare@mediacastnet.com>", "Mediacast Network Solutions"]
+include = [
+    "src/**/*.rs",
+    "catalog/*.yaml",
+    "catalog/*.md",
+    "Cargo.toml",
+    "README.md",
+    "LICENSE-MIT",
+    "LICENSE-APACHE",
+    "CHANGELOG.md",
+]
+
+[lib]
+name = "mediacast_netcatalog"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+# Enable the PyO3 Python bindings. Activated by maturin during wheel builds.
+python = ["dep:pyo3"]
+# Enable the `mediacast-netcatalog probe` CLI binary.
+bin = ["dep:clap", "dep:tokio", "dep:reqwest", "dep:serde_json", "dep:anyhow"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+thiserror = "1.0"
+once_cell = "1.19"
+indexmap = { version = "2.2", features = ["serde"] }
+tracing = "0.1"
+
+# Optional — Python bindings
+pyo3 = { version = "0.21", features = ["extension-module", "abi3-py39"], optional = true }
+
+# Optional — probe binary
+clap = { version = "4.5", features = ["derive"], optional = true }
+tokio = { version = "1.36", features = ["macros", "rt-multi-thread", "net", "io-util", "time"], optional = true }
+reqwest = { version = "0.12", features = ["rustls-tls", "json"], default-features = false, optional = true }
+serde_json = { version = "1.0", optional = true }
+anyhow = { version = "1.0", optional = true }
+
+[dev-dependencies]
+anyhow = "1.0"
+pretty_assertions = "1.4"
+rstest = "0.21"
+
+[[example]]
+name = "basic_lookup"
+required-features = []
+
+[[bin]]
+name = "mediacast-netcatalog"
+path = "src/bin/probe.rs"
+required-features = ["bin"]
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+
+[package.metadata.docs.rs]
+all-features = false
+features = []
+rustdoc-args = ["--cfg", "docsrs"]

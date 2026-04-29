@@ -1,0 +1,49 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# Python / maturin
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+eggs/
+.eggs/
+sdist/
+wheels/
+*.egg-info/
+*.egg
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Maturin output
+target/wheels/
+
+# Local-only secrets / credentials (catalog itself ships clean)
+.env
+.env.local
+secrets/
+
+# Coverage
+coverage/
+*.lcov
+htmlcov/
+.coverage
+
+# Generated docs
+/docs/_build/

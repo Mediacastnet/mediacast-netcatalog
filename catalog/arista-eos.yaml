@@ -1,0 +1,1195 @@
+# ── Vendor identity ────────────────────────────────────────────────
+vendor: arista_eos
+display_name: "Arista EOS"
+manufacturer: "Arista Networks"
+product_family: "Arista 7000 / 7100 / 7200 / 7300 / 7500 / 7800 (DCS / CCS) — campus + datacenter"
+notes: |
+  Arista EOS is **deliberately Cisco-IOS CLI compatible** for the bulk
+  of show/config commands NetCaster cares about. Most read commands
+  here (`show arp`, `show mac address-table`, `show interfaces ...`,
+  `show vlan`, `show spanning-tree`, `show running-config`) are
+  byte-for-byte identical at the user level to Cisco IOS-XE, with the
+  same column layouts, the same `xxxx.xxxx.xxxx` MAC dotted-quad
+  format, and the same headers — meaning a parser written against
+  IOS-XE typically works against EOS with only minor adjustment.
+
+  **Key divergence for parsers:** interface naming. Arista uses
+  `Ethernet24`, `Ethernet3/1`, `Ethernet1/1/1`, or the short form
+  `Et24` / `Et3/1`. There is no `GigabitEthernet1/0/24` or similar
+  speed-prefixed name. Port-channels are `Port-Channel1` (or `Po1`).
+  SVIs are `Vlan100` (or `Vl100`). The catalog assumes the long form
+  in `cli` strings.
+
+  **Programmatic interfaces:**
+  - **eAPI** is Arista's flagship programmatic API — JSON-RPC 2.0 over
+    HTTPS (default port 443; HTTP/80 also available). Method is always
+    `runCmds` and takes a list of CLI commands; output `format` can be
+    `"json"` (structured) or `"text"` (raw `show` output). This is a
+    4th protocol slot alongside NETCONF/RESTCONF/gNMI and the catalog
+    extends `protocol_alternatives` with an `eapi:` block where the
+    structured form is well-supported. eAPI is enabled with
+    `management api http-commands` / `no shutdown`.
+  - **gNMI** is supported via the OpenConfig agent (ManagementActive
+    `Octa` mode for OpenConfig+TerminAttr). Default port 6030.
+    OpenConfig paths are first-class; native EOS Sysdb/Smash paths are
+    also accessible via the `eos_native` origin.
+  - **NETCONF/RESTCONF** are supported but de-emphasized in Arista's
+    own positioning; gNMI + eAPI are the common picks. NETCONF runs on
+    TCP/830, RESTCONF on TCP/6020.
+
+  **Persistence:** identical to Cisco IOS — `copy running-config
+  startup-config` or `write memory`. Commits are immediate; no
+  Junos-style two-stage commit.
+
+  **Spanning-tree default:** EOS defaults to **MSTP** (not PVST+).
+  Per-VLAN STP requires `spanning-tree mode rapid-pvst` first; the
+  per-VLAN-enable command is `spanning-tree vlan-id <X>` (note the
+  `-id` suffix — IOS uses `spanning-tree vlan <X>` without `-id`,
+  which is one of the few real CLI divergences from Cisco).
+
+  Baseline firmware: EOS **4.32+** (mid-2024 forward) is what this
+  catalog targets. Earlier versions (4.20–4.31) share command surface
+  for the abstract types in scope.
+
+# ── Documentation sources ──────────────────────────────────────────
+sources:
+  - title: "EOS 4.36.0F User Manual — Virtual LANs (VLANs)"
+    url: "https://www.arista.com/en/um-eos/eos-virtual-lans-vlans"
+    accessed: "2026-04-28"
+  - title: "EOS 4.36.0F User Manual — Spanning Tree Protocol"
+    url: "https://www.arista.com/en/um-eos/eos-spanning-tree-protocol"
+    accessed: "2026-04-28"
+  - title: "EOS 4.36.0F User Manual — Link Layer Discovery Protocol"
+    url: "https://www.arista.com/en/um-eos/eos-link-layer-discovery-protocol"
+    accessed: "2026-04-28"
+  - title: "EOS 4.36.0F User Manual — Ethernet Ports"
+    url: "https://www.arista.com/en/um-eos/eos-ethernet-ports"
+    accessed: "2026-04-28"
+  - title: "EOS 4.36.0F User Manual — Port Channels and LACP"
+    url: "https://www.arista.com/en/um-eos/eos-port-channels-and-lacp"
+    accessed: "2026-04-28"
+  - title: "EOS 4.36.0F User Manual — IPv4"
+    url: "https://www.arista.com/en/um-eos/eos-ipv4"
+    accessed: "2026-04-28"
+  - title: "EOS 4.36.0F User Manual — Command-Line Interface (CLI)"
+    url: "https://www.arista.com/en/um-eos/eos-command-line-interface-cli"
+    accessed: "2026-04-28"
+  - title: "EOS 4.36.0F User Manual — Switch Administration Commands"
+    url: "https://www.arista.com/en/um-eos/eos-switch-administration-commands"
+    accessed: "2026-04-28"
+  - title: "EOS 4.36.0F User Manual — Session Management Commands"
+    url: "https://www.arista.com/en/um-eos/eos-session-management-commands"
+    accessed: "2026-04-28"
+  - title: "Arista eAPI Whitepaper"
+    url: "https://www.arista.com/assets/data/pdf/Whitepapers/Arista_eAPI_FINAL.pdf"
+    accessed: "2026-04-28"
+  - title: "Arista eAPI 101 (community KB)"
+    url: "https://arista.my.site.com/AristaCommunity/s/article/arista-eapi-101"
+    accessed: "2026-04-28"
+  - title: "Arista Open Management — OpenConfig Configuration"
+    url: "https://aristanetworks.github.io/openmgmt/configuration/openconfig/"
+    accessed: "2026-04-28"
+  - title: "Arista Open Management — gNMI client examples (gnmic)"
+    url: "https://aristanetworks.github.io/openmgmt/examples/gnmi-clients/gnmic/"
+    accessed: "2026-04-28"
+  - title: "Arista YANG models repository"
+    url: "https://github.com/aristanetworks/yang"
+    accessed: "2026-04-28"
+  - title: "Arista EOS path report (per-release supported gNMI paths)"
+    url: "https://eos.arista.com/path-report"
+    accessed: "2026-04-28"
+  - title: "ECS: How to check Arista switch interfaces (Dell KB; mirrors EOS show output)"
+    url: "https://www.dell.com/support/kbdoc/en-us/000180092/ecs-how-to-check-arista-switch-interfaces"
+    accessed: "2026-04-28"
+  - title: "Arista Warrior 2nd Edition — LLDP chapter (O'Reilly)"
+    url: "https://www.oreilly.com/library/view/arista-warrior-2nd/9781491953037/ch11.html"
+    accessed: "2026-04-28"
+
+# ── Protocol capabilities ──────────────────────────────────────────
+# Per-command applicability captured under each entry's
+# protocol_alternatives. Note that Arista publishes a per-release path
+# report at https://eos.arista.com/path-report for ground-truth on
+# which OpenConfig/native paths are streamable in a given EOS train.
+protocol_capabilities:
+  netconf:
+    introduced_in: "4.22"
+    notes: |
+      Enabled with `management api netconf` / `transport ssh`. Default
+      TCP/830. Available but de-emphasized by Arista in favor of gNMI
+      + eAPI; many Arista shops never enable it.
+  restconf:
+    introduced_in: "4.23"
+    notes: |
+      Enabled with `management api restconf`. RESTCONF on Arista is
+      narrower than the Cisco/Juniper equivalents; gNMI is the
+      preferred path for protocol-driven access.
+  gnmi:
+    introduced_in: "4.20.1F"
+    notes: |
+      Enabled with `management api gnmi` / `transport grpc default`.
+      Default TCP/6030. Supports OpenConfig paths; with Octa
+      (OpenConfig + TerminAttr) enabled, also supports EOS native
+      Sysdb/Smash paths via the `eos_native` origin. This is the
+      preferred protocol for streaming telemetry on EOS.
+  eapi:
+    introduced_in: "4.12"
+    notes: |
+      Arista's flagship API. JSON-RPC 2.0 over HTTPS (default 443) or
+      HTTP (default 80). Single method `runCmds(version, cmds,
+      format)`; `format` is `"json"` for structured output (where
+      supported) or `"text"` for raw show output. Enable with
+      `management api http-commands` / `no shutdown`. This is the
+      protocol-alternatives slot the catalog extends beyond the
+      standard NETCONF/RESTCONF/gNMI triad.
+
+# ── Commands ───────────────────────────────────────────────────────
+commands:
+
+  # ── READS ──────────────────────────────────────────────────────
+
+  - type: ARP_TABLE
+    description: "Display the IPv4 ARP table"
+    versions:
+      - applies_to: ">=4.20"
+        cli: "show ip arp"
+        sample_output: |
+          Address         Age (min)  Hardware Addr   Interface
+          172.25.0.2              0  004c.6211.021e  Vlan101, Port-Channel2
+          172.22.0.1              0  004c.6214.3699  Vlan1000, Port-Channel1
+          172.22.0.2              0  004c.6219.a0f3  Vlan1000, Port-Channel1
+          172.22.0.3              0  0045.4942.a32c  Vlan1000, Ethernet33
+        parser_notes: |
+          4-column space-separated. Header row `Address / Age (min) /
+          Hardware Addr / Interface`. Hardware Addr is Cisco-dotted
+          (`xxxx.xxxx.xxxx`), same format as IOS. Interface column may
+          contain a comma-separated pair (e.g.
+          `Vlan1000, Port-Channel1`) where the first is the L3 SVI and
+          the second is the underlying L2 path. Strip header before
+          iterating rows.
+        config_required: ""
+        notes: |
+          IOS-COMPATIBLE — same shape as `show ip arp` on IOS-XE,
+          minus the leading `Protocol` column. `show arp` is also
+          accepted as an alias on EOS and produces the same output.
+    protocol_alternatives:
+      netconf:
+        yang_model: "openconfig-network-instance"
+        data_path: "/network-instances/network-instance/protocols/protocol/arp/state"
+        firmware_required: ">=4.24"
+      restconf: null
+      gnmi:
+        path: "/network-instances/network-instance[name=default]/fdb/mac-table/entries"
+        firmware_required: ">=4.24"
+      eapi:
+        method: "runCmds"
+        cli: "show ip arp"
+        format: "json"
+        firmware_required: ">=4.20"
+
+  - type: MAC_TABLE
+    description: "Display the MAC address table"
+    versions:
+      - applies_to: ">=4.20"
+        cli: "show mac address-table"
+        sample_output: |
+          Mac Address Table
+          ------------------------------------------------------------------
+
+          Vlan    Mac Address       Type        Ports      Moves   Last Move
+          ----    -----------       ----        -----      -----   ---------
+           101    001c.8224.36d7    DYNAMIC     Po2        1       9 days, 15:57:28 ago
+           102    001c.8220.1319    STATIC      Po1
+           102    001c.8229.a0f3    DYNAMIC     Po1        1       0:05:05 ago
+          Total Mac Addresses for this criterion: 3
+
+                 Multicast Mac Address Table
+          ------------------------------------------------------------------
+
+          Vlan    Mac Address       Type        Ports
+          ----    -----------       ----        -----
+          Total Mac Addresses for this criterion: 0
+        parser_notes: |
+          6-column layout: `Vlan / Mac Address / Type / Ports /
+          Moves / Last Move`. Last two columns are absent for STATIC
+          entries. MAC format is Cisco-dotted-quad (`xxxx.xxxx.xxxx`).
+          Ports may be a single Ethernet (`Et11`), a port-channel
+          (`Po1`), or a comma-separated list. EOS appends a trailing
+          `Total Mac Addresses for this criterion: N` summary line and
+          a separate Multicast section — strip both before counting.
+        config_required: ""
+        notes: |
+          IOS-COMPATIBLE in form, with two extras over IOS-XE: the
+          `Moves` and `Last Move` columns. NTC-templates has a known
+          bug where the empty-multicast "Total Mac Addresses for this
+          criterion: 0" footer trips the parser
+          (networktocode/ntc-templates#764) — worth knowing.
+    protocol_alternatives:
+      netconf:
+        yang_model: "openconfig-network-instance"
+        data_path: "/network-instances/network-instance/fdb/mac-table"
+        firmware_required: ">=4.24"
+      restconf: null
+      gnmi:
+        path: "/network-instances/network-instance[name=default]/fdb/mac-table/entries/entry"
+        firmware_required: ">=4.24"
+      eapi:
+        method: "runCmds"
+        cli: "show mac address-table"
+        format: "json"
+        firmware_required: ">=4.20"
+
+  - type: NEIGHBOR_DETAIL
+    description: |
+      LLDP neighbor detail. Arista's preferred neighbor protocol is
+      LLDP (CDP is also supported via `show cdp neighbors detail`,
+      but LLDP is the EOS-default).
+    versions:
+      - applies_to: ">=4.20"
+        cli: "show lldp neighbors detail"
+        sample_output: |
+          Interface Ethernet 3/1 detected 1 LLDP neighbors:
+
+            Neighbor 001c.7300.1506/Ethernet6/25, age 8 seconds
+            Discovered 5 days, 3:58:58 ago; Last changed 5 days, 3:56:57 ago
+              - Chassis ID type: MAC address (4)
+                Chassis ID     : 001c.7300.1506
+              - Port ID type: Interface name (5)
+                Port ID     : "Ethernet6/25"
+              - Time To Live: 120 seconds
+              - Port Description: "Ethernet6/25"
+              - System Name: "Leaf-Switch1.aristanetworks.com"
+              - System Description: "Arista Networks EOS version 4.10.1-SSO running on an Arista Networks DCS-7504"
+              - Management Address Subtype: IPv4 (1)
+                Management Address     : 172.22.30.116
+        parser_notes: |
+          Per-interface block-structured output. Each block begins
+          `Interface <name> detected N LLDP neighbors:` and is
+          followed by N indented `Neighbor <chassis>/<port>, age ...`
+          sub-blocks. Within a sub-block, fields are `- Field: value`
+          or `- Field type: ...` / `Field : value` over two lines.
+          System Description is double-quoted. Empty interfaces print
+          `Interface ... detected 0 LLDP neighbors:` and contribute
+          no sub-block — handle that case.
+        config_required: |
+          lldp run
+        notes: |
+          EOS-NATIVE format (block-structured, similar to but not
+          identical to IOS `show lldp neighbors detail`). For
+          Cisco-IOS CDP-detail compat, `show cdp neighbors detail`
+          works on EOS but emits CDP, not LLDP, which most Arista
+          deployments do not run by default.
+    protocol_alternatives:
+      netconf:
+        yang_model: "openconfig-lldp"
+        data_path: "/lldp/interfaces/interface/neighbors/neighbor"
+        firmware_required: ">=4.24"
+      restconf: null
+      gnmi:
+        path: "/lldp/interfaces/interface[name=*]/neighbors/neighbor/state"
+        firmware_required: ">=4.22"
+      eapi:
+        method: "runCmds"
+        cli: "show lldp neighbors detail"
+        format: "json"
+        firmware_required: ">=4.20"
+
+  - type: LLDP_DETAIL
+    description: |
+      LLDP neighbor detail (when CDP is the primary on a mixed-vendor
+      site). On Arista, this is the same as NEIGHBOR_DETAIL since
+      LLDP is already the default.
+    versions:
+      - applies_to: ">=4.20"
+        cli: "show lldp neighbors detail"
+        sample_output: |
+          Interface Ethernet 3/1 detected 1 LLDP neighbors:
+
+            Neighbor 001c.7300.1506/Ethernet6/25, age 8 seconds
+            Discovered 5 days, 3:58:58 ago; Last changed 5 days, 3:56:57 ago
+              - Chassis ID type: MAC address (4)
+                Chassis ID     : 001c.7300.1506
+              - Port ID type: Interface name (5)
+                Port ID     : "Ethernet6/25"
+              - System Name: "Leaf-Switch1.aristanetworks.com"
+              - Management Address     : 172.22.30.116
+        parser_notes: |
+          Same as NEIGHBOR_DETAIL — see that entry. On EOS this is the
+          same command; the abstract type split exists only because
+          on Cisco IOS LLDP and CDP are distinct commands.
+        config_required: |
+          lldp run
+        notes: |
+          On Arista, LLDP is enabled by default at the global level,
+          but per-interface tx/rx may need `lldp transmit` /
+          `lldp receive` if previously disabled.
+    protocol_alternatives:
+      netconf:
+        yang_model: "openconfig-lldp"
+        data_path: "/lldp/interfaces/interface/neighbors/neighbor"
+        firmware_required: ">=4.24"
+      restconf: null
+      gnmi:
+        path: "/lldp/interfaces/interface[name=*]/neighbors/neighbor/state"
+        firmware_required: ">=4.22"
+      eapi:
+        method: "runCmds"
+        cli: "show lldp neighbors detail"
+        format: "json"
+        firmware_required: ">=4.20"
+
+  - type: PORT_CHANNEL_MEMBERS
+    description: "Map port-channel logical interfaces to physical members"
+    versions:
+      - applies_to: ">=4.20"
+        cli: "show port-channel summary"
+        sample_output: |
+          Flags
+          ------------------------------------------------------------
+            a - LACP Active        p - LACP Passive    * - static fallback
+            F - Fallback enabled   f - fallback configured
+            U - In Use             D - Down
+            +  - In-Sync            -  - Out-of-Sync
+
+          Number of channels in use: 2
+          Number of aggregators: 2
+
+          Port-Channel  Protocol    Ports
+          ------------  ----------  ----------------
+          Po1(U)        LACP(a)     Et1(PU)  Et2(PU)
+          Po2(U)        LACP(a)     Et3(PU)  Et4(PU)
+        parser_notes: |
+          Three-column body: `Port-Channel / Protocol / Ports`. The
+          first column shows the LAG name with a flag suffix in
+          parens (`(U)` = in use, `(D)` = down). The Ports column is
+          a space-separated list of physical members, each with a
+          per-member flag suffix (`(PU)` = in-sync, in-use). Strip
+          header lines down to the row under the dashes; use `(` to
+          split flag from name.
+        config_required: ""
+        notes: |
+          IOS-COMPATIBLE in spirit — same `show port-channel summary`
+          form. `show port-channel dense` and `show etherchannel
+          summary` (alias) produce comparable info. Static (non-LACP)
+          channels show Protocol as `Static`.
+    protocol_alternatives:
+      netconf:
+        yang_model: "openconfig-if-aggregate"
+        data_path: "/interfaces/interface/aggregation/state/member"
+        firmware_required: ">=4.24"
+      restconf: null
+      gnmi:
+        path: "/interfaces/interface[name=Port-Channel*]/aggregation/state/member"
+        firmware_required: ">=4.22"
+      eapi:
+        method: "runCmds"
+        cli: "show port-channel summary"
+        format: "json"
+        firmware_required: ">=4.20"
+
+  - type: INTERFACE_CONFIG
+    description: "Running-config for a single interface"
+    versions:
+      - applies_to: ">=4.20"
+        cli: "show running-config interfaces {interface}"
+        sample_output: |
+          interface Ethernet1
+             description AP-uplink
+             switchport access vlan 33
+             spanning-tree portfast
+             spanning-tree bpduguard enable
+        parser_notes: |
+          Cisco-style stanza: opening `interface <name>`, three-space
+          indented child lines, no closing delimiter — terminated by
+          the next non-indented line or EOF. Same shape as IOS.
+        config_required: ""
+        notes: |
+          IOS-COMPATIBLE. Note `interfaces` (plural) on EOS — `show
+          running-config interface Ethernet1` (singular) also works
+          but the EOS-canonical form is plural. `{interface}` should
+          be the long form (`Ethernet1`, `Port-Channel1`, `Vlan100`).
+    protocol_alternatives:
+      netconf:
+        yang_model: "openconfig-interfaces"
+        data_path: "/interfaces/interface[name={interface}]/config"
+        firmware_required: ">=4.24"
+      restconf: null
+      gnmi:
+        path: "/interfaces/interface[name={interface}]/config"
+        firmware_required: ">=4.22"
+      eapi:
+        method: "runCmds"
+        cli: "show running-config interfaces {interface}"
+        format: "text"
+        firmware_required: ">=4.20"
+
+  - type: INTERFACE_CONFIG_BULK
+    description: "All interface running-config sections in one shot"
+    versions:
+      - applies_to: ">=4.20"
+        cli: "show running-config interfaces"
+        sample_output: |
+          interface Ethernet1
+             description AP-uplink
+             switchport access vlan 33
+             spanning-tree portfast
+             spanning-tree bpduguard enable
+          !
+          interface Ethernet2
+             switchport mode trunk
+             switchport trunk allowed vlan 10,20,30
+          !
+          interface Port-Channel1
+             switchport mode trunk
+          !
+          interface Vlan100
+             ip address 10.1.0.1/24
+          !
+        parser_notes: |
+          Concatenation of per-interface stanzas separated by `!`
+          delimiters. Split on `^!$` lines to get individual stanzas,
+          then parse as INTERFACE_CONFIG.
+        config_required: ""
+        notes: |
+          IOS-COMPATIBLE. Much faster than per-interface fetch on
+          large chassis (7300/7500/7800 with hundreds of ports).
+    protocol_alternatives:
+      netconf:
+        yang_model: "openconfig-interfaces"
+        data_path: "/interfaces/interface/config"
+        firmware_required: ">=4.24"
+      restconf: null
+      gnmi:
+        path: "/interfaces/interface/config"
+        firmware_required: ">=4.22"
+      eapi:
+        method: "runCmds"
+        cli: "show running-config interfaces"
+        format: "text"
+        firmware_required: ">=4.20"
+
+  - type: INTERFACE_STATS
+    description: "Detailed counters / state for a single interface"
+    versions:
+      - applies_to: ">=4.20"
+        cli: "show interfaces {interface}"
+        sample_output: |
+          Ethernet1 is up, line protocol is up (connected)
+            Hardware is Ethernet, address is 001c.731c.5073 (bia 001c.731c.5073)
+            Ethernet MTU 9214 bytes, BW 1000000 kbit
+            Full-duplex, 1Gb/s, auto negotiation: on, uni-link: n/a
+            Up 4 days, 12 hours, 3 minutes, 18 seconds
+            Loopback Mode : None
+            5 minutes input rate 0 bps (0.0% with framing overhead), 0 packets/sec
+            5 minutes output rate 0 bps (0.0% with framing overhead), 0 packets/sec
+               158324 packets input, 14215680 bytes
+               Received 0 broadcasts, 0 multicast
+               0 runts, 0 giants
+               0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+               0 PAUSE input
+               142109 packets output, 12891024 bytes
+               Sent 0 broadcasts, 0 multicast
+               0 output errors, 0 collisions
+               0 late collision, 0 deferred, 0 output discards
+               0 PAUSE output
+        parser_notes: |
+          Cisco-style multi-line block. First line gives admin/oper
+          state. `Hardware is Ethernet, address is xxxx.xxxx.xxxx
+          (bia ...)` line carries the MAC. Counter section is
+          indented 3 spaces. Same parse shape as IOS-XE
+          `show interfaces` modulo wording differences.
+        config_required: ""
+        notes: |
+          IOS-COMPATIBLE in form, with the EOS quirk that the default
+          MTU on L2 interfaces is 9214 (jumbo) rather than IOS-XE's
+          1500 — a parser comparing MTU-against-baseline must
+          version- or vendor-key its threshold.
+    protocol_alternatives:
+      netconf:
+        yang_model: "openconfig-interfaces"
+        data_path: "/interfaces/interface[name={interface}]/state"
+        firmware_required: ">=4.24"
+      restconf: null
+      gnmi:
+        path: "/interfaces/interface[name={interface}]/state/counters"
+        firmware_required: ">=4.20.1F"
+      eapi:
+        method: "runCmds"
+        cli: "show interfaces {interface}"
+        format: "json"
+        firmware_required: ">=4.20"
+
+  - type: CIVIC_LOCATION
+    description: "LLDP-MED civic location definitions"
+    versions:
+      - applies_to: "*"
+        cli: "NOT_SUPPORTED"
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Arista EOS does not expose LLDP-MED civic location config
+          in the same first-class way Aruba AOS-CX does. EOS supports
+          LLDP-MED Network Policy and basic location TLVs but not the
+          civic-address `location civic-address` config tree. If EOS
+          eventually adds it, the command would likely live under
+          `lldp ... location civic-address`. For now, treat as
+          NOT_SUPPORTED — this is the correct behavior for a vendor
+          that genuinely doesn't expose the operation.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+      eapi: null
+
+  - type: VLAN_LIST
+    description: "List all VLANs on the switch"
+    versions:
+      - applies_to: ">=4.20"
+        cli: "show vlan"
+        sample_output: |
+          VLAN  Name                             Status    Ports
+          ----- -------------------------------- --------- -------------------------------
+          1     default                          active    Et9, Et11, Po1
+          100   VLAN0100                         active    Et1, Et6+, Et7+, Et8+
+          101   VLAN0101                         active    Et1+, Et6
+          102   VLAN0102                         active    Et1+, Et7, Et8
+          200   VLAN0200                         active    Et10
+          201   VLAN0201                         active    Et10+, Et9
+        parser_notes: |
+          4-column space-separated. Header row `VLAN / Name / Status /
+          Ports`. `+` suffix on a port (e.g. `Et6+`) indicates it's
+          tagged on this VLAN (trunk member). No suffix = untagged
+          (access). Ports is a comma+space-separated list and may
+          wrap across lines when long; use indentation of continuation
+          lines to detect wraps.
+        config_required: ""
+        notes: |
+          IOS-COMPATIBLE. `show vlan brief` is also accepted as alias
+          and produces the same output (unlike IOS where `show vlan
+          brief` is the trimmed form). On EOS the default VLAN name
+          is `VLAN0XXX` (zero-padded), not Cisco's `VLAN0100`-style.
+    protocol_alternatives:
+      netconf:
+        yang_model: "openconfig-vlan"
+        data_path: "/vlans/vlan"
+        firmware_required: ">=4.24"
+      restconf: null
+      gnmi:
+        path: "/network-instances/network-instance[name=default]/vlans/vlan"
+        firmware_required: ">=4.22"
+      eapi:
+        method: "runCmds"
+        cli: "show vlan"
+        format: "json"
+        firmware_required: ">=4.20"
+
+  - type: SVI_CONFIG
+    description: "SVI / VLAN-interface running-config"
+    versions:
+      - applies_to: ">=4.20"
+        cli: "show running-config interfaces Vlan{vlan_id}"
+        sample_output: |
+          interface Vlan100
+             description users
+             ip address 10.1.0.1/24
+             ip helper-address 10.0.5.5
+             ip igmp
+        parser_notes: |
+          Same INTERFACE_CONFIG stanza shape; SVI-specific child
+          lines are `ip address`, `ip helper-address`,
+          `ip pim sparse-mode`, `ip igmp`, `vrrp`, etc. Note `ip
+          address` uses CIDR notation (`10.1.0.1/24`), NOT the
+          `10.1.0.1 255.255.255.0` mask form that IOS uses by default.
+          This is one of the few real CLI divergences from Cisco.
+        config_required: ""
+        notes: |
+          MOSTLY IOS-COMPATIBLE — but the **CIDR-vs-mask address
+          format is a real divergence** that a parser comparing
+          baseline configs across vendors must handle. EOS always
+          emits CIDR; IOS-XE emits dotted-mask unless `ip address-family
+          ipv4 ip-address-format cidr` is set (rare).
+    protocol_alternatives:
+      netconf:
+        yang_model: "openconfig-interfaces"
+        data_path: "/interfaces/interface[name=Vlan{vlan_id}]/subinterfaces/subinterface[index=0]/ipv4"
+        firmware_required: ">=4.24"
+      restconf: null
+      gnmi:
+        path: "/interfaces/interface[name=Vlan{vlan_id}]/routed-vlan/ipv4/addresses"
+        firmware_required: ">=4.22"
+      eapi:
+        method: "runCmds"
+        cli: "show running-config interfaces Vlan{vlan_id}"
+        format: "text"
+        firmware_required: ">=4.20"
+
+  - type: STP_VLAN_LIST
+    description: "List of VLANs with spanning-tree enabled / participating"
+    versions:
+      - applies_to: ">=4.20"
+        cli: "show spanning-tree"
+        sample_output: |
+          MST0
+            Spanning tree enabled protocol rstp
+            Root ID    Priority    32768
+                       Address     001c.730c.1867
+                       This bridge is the root
+
+            Bridge ID  Priority    32768  (priority 32768 sys-id-ext 0)
+                       Address     001c.730c.1867
+                       Hello Time  2.000 sec  Max Age 20 sec  Forward Delay 15 sec
+
+          Interface        Role       State      Cost      Prio.Nbr Type
+          ---------------- ---------- ---------- --------- -------- -----
+          Et51             designated forwarding 2000      128.51   P2p
+        parser_notes: |
+          Block-structured. Each instance (MST0, MST1, ... or VL100,
+          VL200, ... in rapid-pvst mode) is a separate block. The
+          instance header (`MST0`, `VL100`) on its own line is the
+          marker; iterate blocks by detecting that pattern. Per-
+          instance the format mirrors IOS-XE.
+        config_required: ""
+        notes: |
+          DEFAULT EOS MODE IS MSTP, NOT PVST+. In MSTP, instances are
+          `MSTn` and you map VLANs to instances — there's no per-VLAN
+          STP block by default. To get per-VLAN blocks, the device
+          must be in `spanning-tree mode rapid-pvst`. This is the
+          most consequential STP-shape divergence from Cisco IOS-XE
+          (which defaults to PVST+) and a parser must check
+          `spanning-tree mode` before assuming per-VLAN output.
+      - applies_to: ">=4.20"
+        cli: "show spanning-tree vlan {vlan_id}"
+        sample_output: |
+          VL100
+            Spanning tree enabled protocol rapid-pvst
+            Root ID    Priority    32868
+                       Address     001c.730c.1867
+                       This bridge is the root
+
+            Bridge ID  Priority    32868  (priority 32768 sys-id-ext 100)
+                       Address     001c.730c.1867
+                       Hello Time  2.000 sec  Max Age 20 sec  Forward Delay 15 sec
+
+          Interface        Role       State      Cost      Prio.Nbr Type
+          ---------------- ---------- ---------- --------- -------- -----
+          Et1              designated forwarding 20000     128.1    Edge
+        parser_notes: |
+          Same block shape as `show spanning-tree`. Only available
+          in rapid-pvst or pvst mode.
+        config_required: |
+          spanning-tree mode rapid-pvst
+        notes: |
+          Per-VLAN-only — empty/erroring in MSTP mode.
+    protocol_alternatives:
+      netconf:
+        yang_model: "openconfig-spanning-tree"
+        data_path: "/stp/rapid-pvst/vlan"
+        firmware_required: ">=4.24"
+      restconf: null
+      gnmi:
+        path: "/stp/rapid-pvst/vlan[vlan-id=*]/state"
+        firmware_required: ">=4.24"
+      eapi:
+        method: "runCmds"
+        cli: "show spanning-tree"
+        format: "json"
+        firmware_required: ">=4.20"
+
+  - type: HARDWARE_IDENTITY
+    description: "Stable hardware identity — chassis serial, base MAC, model"
+    versions:
+      - applies_to: ">=4.20"
+        cli: "show version"
+        sample_output: |
+          Arista DCS-7150S-64-CL-F
+          Hardware version:    01.01
+          Serial number:       JPE13120819
+          System MAC address:  001c.7326.fd0c
+
+          Software image version: 4.13.2F
+          Architecture:           i386
+          Internal build version: 4.13.2F-1649184.4132F.2
+          Internal build ID:      eeb3c212-b4bd-4c19-ba34-1b0aa36e43f1
+
+          Uptime:                 16 hours and 39 minutes
+          Total memory:           4017088 kB
+          Free memory:            1348228 kB
+        parser_notes: |
+          Key-value, colon-separated, multi-line. First line is the
+          model only (no `key:` prefix). Then `Hardware version:`,
+          `Serial number:`, `System MAC address:`, `Software image
+          version:` are the load-bearing keys. Use case-sensitive
+          key match; values may contain leading whitespace after the
+          colon (variable spacing — strip).
+        config_required: ""
+        notes: |
+          EOS-NATIVE format — distinct from Cisco's `show version`
+          which is more prose-y. EOS is parser-friendlier here.
+          For multi-chassis (7500/7800), `show inventory` and
+          `show module` complement this — invoke as a composite if
+          per-linecard serials are needed.
+    protocol_alternatives:
+      netconf:
+        yang_model: "openconfig-platform"
+        data_path: "/components/component"
+        firmware_required: ">=4.24"
+      restconf: null
+      gnmi:
+        path: "/components/component[name=Chassis]/state"
+        firmware_required: ">=4.22"
+      eapi:
+        method: "runCmds"
+        cli: "show version"
+        format: "json"
+        firmware_required: ">=4.20"
+
+  - type: HOSTNAME
+    description: "The switch's configured hostname"
+    versions:
+      - applies_to: ">=4.20"
+        cli: "show hostname"
+        sample_output: |
+          Hostname: leaf1
+          FQDN:     leaf1.example.com
+        parser_notes: |
+          Two-line key:value. `Hostname:` is the configured short
+          name; `FQDN:` is short + ip-domain-name when set.
+        config_required: ""
+        notes: |
+          EOS-NATIVE — IOS does not have `show hostname` and exposes
+          the hostname only via the prompt or `show running-config |
+          include hostname`. EOS exposing it as a first-class show is
+          one of the few things parser-friendlier on Arista.
+    protocol_alternatives:
+      netconf:
+        yang_model: "openconfig-system"
+        data_path: "/system/state/hostname"
+        firmware_required: ">=4.24"
+      restconf: null
+      gnmi:
+        path: "/system/state/hostname"
+        firmware_required: ">=4.22"
+      eapi:
+        method: "runCmds"
+        cli: "show hostname"
+        format: "json"
+        firmware_required: ">=4.20"
+
+  - type: VERSION
+    description: "Firmware version string — critical for catalog version-aware selection"
+    versions:
+      - applies_to: ">=4.20"
+        cli: "show version"
+        sample_output: |
+          Arista DCS-7150S-64-CL-F
+          Hardware version:    01.01
+          Serial number:       JPE13120819
+          System MAC address:  001c.7326.fd0c
+
+          Software image version: 4.13.2F
+          Architecture:           i386
+          Internal build version: 4.13.2F-1649184.4132F.2
+        parser_notes: |
+          Pull `Software image version: <X>` for the canonical
+          version string. Format is `MAJOR.MINOR.PATCH<TRAIN>` where
+          `<TRAIN>` is `F` (Feature), `M` (Maintenance), or `S`
+          (Snapshot). For semver matching, strip the train letter
+          when comparing — `4.32.0F` and `4.32.0M` are the same
+          x.y.z. `Internal build version` carries the full build id
+          if exact match is needed.
+        config_required: ""
+        notes: |
+          Same command as HARDWARE_IDENTITY — different field
+          extraction. Cache the show-version output and project both.
+    protocol_alternatives:
+      netconf:
+        yang_model: "openconfig-system"
+        data_path: "/system/state/software-version"
+        firmware_required: ">=4.24"
+      restconf: null
+      gnmi:
+        path: "/system/state/software-version"
+        firmware_required: ">=4.22"
+      eapi:
+        method: "runCmds"
+        cli: "show version"
+        format: "json"
+        firmware_required: ">=4.20"
+
+  # ── PORT-LEVEL WRITES ──────────────────────────────────────────
+
+  - type: PORT_SHUTDOWN
+    description: "Administratively disable an interface"
+    versions:
+      - applies_to: ">=4.20"
+        cli: |
+          configure terminal
+          interface {interface}
+          shutdown
+          end
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          IOS-COMPATIBLE. Composite — three lines under config mode.
+          `{interface}` is the EOS long form (`Ethernet24`,
+          `Port-Channel1`). NetCaster's safe-path layer should
+          continue to refuse shutdown on LAGs / port-channels and
+          infrastructure interfaces.
+    protocol_alternatives:
+      netconf:
+        yang_model: "openconfig-interfaces"
+        data_path: "/interfaces/interface[name={interface}]/config/enabled"
+        firmware_required: ">=4.24"
+      restconf: null
+      gnmi:
+        path: "/interfaces/interface[name={interface}]/config/enabled"
+        firmware_required: ">=4.22"
+      eapi:
+        method: "runCmds"
+        cli: |
+          configure
+          interface {interface}
+          shutdown
+        format: "text"
+        firmware_required: ">=4.20"
+
+  - type: PORT_NO_SHUTDOWN
+    description: "Administratively enable an interface"
+    versions:
+      - applies_to: ">=4.20"
+        cli: |
+          configure terminal
+          interface {interface}
+          no shutdown
+          end
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          IOS-COMPATIBLE.
+    protocol_alternatives:
+      netconf:
+        yang_model: "openconfig-interfaces"
+        data_path: "/interfaces/interface[name={interface}]/config/enabled"
+        firmware_required: ">=4.24"
+      restconf: null
+      gnmi:
+        path: "/interfaces/interface[name={interface}]/config/enabled"
+        firmware_required: ">=4.22"
+      eapi:
+        method: "runCmds"
+        cli: |
+          configure
+          interface {interface}
+          no shutdown
+        format: "text"
+        firmware_required: ">=4.20"
+
+  - type: PORT_VLAN_ASSIGN
+    description: "Set the access VLAN on an interface"
+    versions:
+      - applies_to: ">=4.20"
+        cli: |
+          configure terminal
+          interface {interface}
+          switchport mode access
+          switchport access vlan {vlan_id}
+          end
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          IOS-COMPATIBLE. Including the explicit `switchport mode
+          access` is defensive — if the port had been a trunk, the
+          access-vlan command alone would not flip the mode.
+    protocol_alternatives:
+      netconf:
+        yang_model: "openconfig-vlan"
+        data_path: "/interfaces/interface[name={interface}]/ethernet/switched-vlan/config/access-vlan"
+        firmware_required: ">=4.24"
+      restconf: null
+      gnmi:
+        path: "/interfaces/interface[name={interface}]/ethernet/switched-vlan/config/access-vlan"
+        firmware_required: ">=4.22"
+      eapi:
+        method: "runCmds"
+        cli: |
+          configure
+          interface {interface}
+          switchport mode access
+          switchport access vlan {vlan_id}
+        format: "text"
+        firmware_required: ">=4.20"
+
+  - type: PORT_POE_OFF
+    description: "Disable PoE on an interface"
+    versions:
+      - applies_to: ">=4.20"
+        cli: |
+          configure terminal
+          interface {interface}
+          poe disabled
+          end
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          EOS-NATIVE syntax. **Diverges from IOS** — Cisco IOS uses
+          `power inline never`. EOS uses `poe disabled` (also accepts
+          `no poe enabled`). Only supported on PoE-capable models
+          (campus 720XP / 750X / 7300X-M etc.); on non-PoE models the
+          command is rejected with `Power over Ethernet (PoE) is not
+          supported on this interface`. NetCaster should pre-flight
+          check via `show poe` before invoking.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi:
+        path: "/interfaces/interface[name={interface}]/state/poe/config/enabled"
+        firmware_required: ">=4.28"
+      eapi:
+        method: "runCmds"
+        cli: |
+          configure
+          interface {interface}
+          poe disabled
+        format: "text"
+        firmware_required: ">=4.20"
+
+  - type: PORT_POE_ON
+    description: "Enable PoE on an interface"
+    versions:
+      - applies_to: ">=4.20"
+        cli: |
+          configure terminal
+          interface {interface}
+          no poe disabled
+          end
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          EOS-NATIVE — opposite of PORT_POE_OFF. Equivalent forms:
+          `default poe disabled`. PoE is enabled by default on
+          PoE-capable interfaces, so this is functionally a "restore
+          default" rather than a literal enable. PoE-cycle (the
+          NetCaster `port-cycle PoE` action) is implemented as
+          off-then-on with a short delay (NetCaster engine
+          orchestrates the timing).
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi:
+        path: "/interfaces/interface[name={interface}]/state/poe/config/enabled"
+        firmware_required: ">=4.28"
+      eapi:
+        method: "runCmds"
+        cli: |
+          configure
+          interface {interface}
+          no poe disabled
+        format: "text"
+        firmware_required: ">=4.20"
+
+  - type: PORT_POLICY_PUSH
+    description: |
+      Composite: portfast, BPDU guard, storm control, description.
+      Vendor-specific composition of access-port hardening.
+    versions:
+      - applies_to: ">=4.20"
+        cli: |
+          configure terminal
+          interface {interface}
+          description {description}
+          switchport mode access
+          switchport access vlan {vlan_id}
+          spanning-tree portfast
+          spanning-tree bpduguard enable
+          storm-control broadcast level 1
+          storm-control multicast level 1
+          end
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          IOS-COMPATIBLE almost line-for-line. The only EOS-quirk
+          worth flagging is `storm-control` levels — EOS accepts
+          percentages (1, 5, etc.) the same way IOS does, but on some
+          older models accepts only `bps` rates. Validate against
+          target firmware. `spanning-tree portfast` and
+          `spanning-tree bpduguard enable` are byte-identical to IOS.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+      eapi:
+        method: "runCmds"
+        cli: |
+          configure
+          interface {interface}
+          description {description}
+          switchport mode access
+          switchport access vlan {vlan_id}
+          spanning-tree portfast
+          spanning-tree bpduguard enable
+          storm-control broadcast level 1
+          storm-control multicast level 1
+        format: "text"
+        firmware_required: ">=4.20"
+
+  # ── PROVISIONING WRITES ────────────────────────────────────────
+
+  - type: VLAN_CREATE
+    description: "Create a VLAN definition (vid + optional name)"
+    versions:
+      - applies_to: ">=4.20"
+        cli: |
+          configure terminal
+          vlan {vlan_id}
+          name {name}
+          end
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          IOS-COMPATIBLE. If `{name}` is empty, omit the `name`
+          line; EOS will assign the default `VLAN0XXX` name (zero-
+          padded), which is the minor cosmetic divergence from IOS.
+    protocol_alternatives:
+      netconf:
+        yang_model: "openconfig-vlan"
+        data_path: "/network-instances/network-instance/vlans/vlan[vlan-id={vlan_id}]"
+        firmware_required: ">=4.24"
+      restconf: null
+      gnmi:
+        path: "/network-instances/network-instance[name=default]/vlans/vlan[vlan-id={vlan_id}]/config"
+        firmware_required: ">=4.22"
+      eapi:
+        method: "runCmds"
+        cli: |
+          configure
+          vlan {vlan_id}
+          name {name}
+        format: "text"
+        firmware_required: ">=4.20"
+
+  - type: SVI_CREATE
+    description: "Create an SVI for a VLAN with optional IP / DHCP relay / IGMP / PIM"
+    versions:
+      - applies_to: ">=4.20"
+        cli: |
+          configure terminal
+          interface Vlan{vlan_id}
+          description {description}
+          ip address {cidr}
+          ip helper-address {ip_address}
+          ip pim sparse-mode
+          ip igmp
+          no shutdown
+          end
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          MOSTLY IOS-COMPATIBLE. **Real divergence:** the IP address
+          MUST be CIDR (`10.1.0.1/24`), not the IOS dotted-mask
+          (`10.1.0.1 255.255.255.0`). NetCaster's per-vendor SVI
+          builder must emit the right form. Also: `ip pim sparse-
+          mode` requires a multicast feature license (LANZ, etc.) on
+          some models — pre-flight or accept that `% Multicast not
+          enabled` may surface and the rest of the stanza still
+          applies.
+    protocol_alternatives:
+      netconf:
+        yang_model: "openconfig-interfaces"
+        data_path: "/interfaces/interface[name=Vlan{vlan_id}]"
+        firmware_required: ">=4.24"
+      restconf: null
+      gnmi:
+        path: "/interfaces/interface[name=Vlan{vlan_id}]/routed-vlan/ipv4/addresses"
+        firmware_required: ">=4.22"
+      eapi:
+        method: "runCmds"
+        cli: |
+          configure
+          interface Vlan{vlan_id}
+          description {description}
+          ip address {cidr}
+          ip helper-address {ip_address}
+          no shutdown
+        format: "text"
+        firmware_required: ">=4.20"
+
+  - type: STP_VLAN_ENABLE
+    description: "Enable spanning-tree for a VLAN (rapid-pvst mode)"
+    versions:
+      - applies_to: ">=4.20"
+        cli: |
+          configure terminal
+          no spanning-tree vlan-id {vlan_id} mode disabled
+          end
+        sample_output: ""
+        parser_notes: ""
+        config_required: |
+          spanning-tree mode rapid-pvst
+        notes: |
+          **DIVERGES FROM IOS.** Cisco IOS uses `spanning-tree vlan
+          {vlan_id}` to enable. EOS uses **`spanning-tree vlan-id
+          {vlan_id}`** (note the hyphen and `-id` suffix). To
+          *disable* on EOS: `no spanning-tree vlan-id {vlan_id}`. To
+          re-enable, the canonical form depends on the operator's
+          intent — the most common pattern is to remove the explicit
+          disable (`no` of a `no`). EOS spanning-tree is on by
+          default for all VLANs in the active mode, so `STP_VLAN_
+          ENABLE` is rarely needed — typically the operation is a
+          re-enable after a deliberate disable.
+    protocol_alternatives:
+      netconf:
+        yang_model: "openconfig-spanning-tree"
+        data_path: "/stp/rapid-pvst/vlan[vlan-id={vlan_id}]"
+        firmware_required: ">=4.24"
+      restconf: null
+      gnmi:
+        path: "/stp/rapid-pvst/vlan[vlan-id={vlan_id}]/config"
+        firmware_required: ">=4.24"
+      eapi:
+        method: "runCmds"
+        cli: |
+          configure
+          no spanning-tree vlan-id {vlan_id} mode disabled
+        format: "text"
+        firmware_required: ">=4.20"
+
+  # ── PERSISTENCE ────────────────────────────────────────────────
+
+  - type: SAVE_CONFIG
+    description: "Copy running-config to startup-config"
+    versions:
+      - applies_to: ">=4.20"
+        cli: "copy running-config startup-config"
+        sample_output: |
+          Copy completed successfully.
+        parser_notes: |
+          Single-line response. Errors surface as `% ...` lines.
+        config_required: ""
+        notes: |
+          IOS-COMPATIBLE. `write memory` and `write` are also
+          accepted as aliases (EOS preserves these for IOS-shop
+          muscle memory). Commits are immediate; no Junos-style
+          two-stage commit. There's no rollback once startup is
+          overwritten — if NetCaster wants pre-write rollback safety,
+          take a `show running-config` snapshot and store before
+          invoking SAVE_CONFIG.
+    protocol_alternatives:
+      netconf:
+        yang_model: "arista-rpc-system"
+        data_path: "copy"
+        firmware_required: ">=4.24"
+      restconf: null
+      gnmi: null
+      eapi:
+        method: "runCmds"
+        cli: "copy running-config startup-config"
+        format: "text"
+        firmware_required: ">=4.20"

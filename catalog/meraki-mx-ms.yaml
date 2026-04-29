@@ -1,0 +1,947 @@
+# ── Vendor identity ────────────────────────────────────────────────
+vendor: meraki_ms
+display_name: "Cisco Meraki MS (cloud-managed switching)"
+manufacturer: "Cisco Meraki"
+product_family: "MS series cloud-managed switches"
+notes: |
+  *** SCHEMA STRETCH WARNING — read this before consuming the file. ***
+
+  Meraki MS is fundamentally different from every other vendor in this
+  catalog. The switches are CLOUD-MANAGED. There is no traditional CLI
+  for management operations. Operators interact with switches via:
+
+    1. The Meraki Dashboard web UI (interactive operators), and
+    2. The Meraki Dashboard API — a REST + JSON over HTTPS API hosted
+       at https://api.meraki.com/api/v1 (programmatic / automation).
+
+  To make Meraki even loosely fit this catalog's schema, we deliberately
+  stretch the `cli` field: instead of a CLI string, the `cli` field
+  contains the Dashboard API endpoint expressed as `METHOD /path` (e.g.,
+  `GET /devices/{serial}/clients`). This is documented here so any
+  future runtime catalog loader treats Meraki as a special case rather
+  than trying to ship the string to a Netmiko session.
+
+  A LOCAL CLI EXISTS on each MS switch but is intentionally restricted.
+  It's reachable via the local status page (default: serial-number
+  username, blank password) and exposes only diagnostic tools — `ping`,
+  `traceroute`, `mtr`, `packet capture`, event logs. It is NOT a
+  management plane: you cannot configure VLANs, change port settings,
+  or save config from it. NetCaster has no reason to use it for any
+  abstract command type in this catalog. References to "local CLI"
+  below mean exactly this restricted diagnostic shell.
+
+  Operations that target Meraki "networks" rather than a specific
+  switch (VLAN_CREATE on the appliance side, STP_VLAN_ENABLE network-
+  wide) reflect Meraki's model: VLANs are network constructs, switch
+  templates / profiles inherit them, individual switch ports reference
+  the VLAN ID. There's no per-switch `vlan 100` provisioning step.
+
+  Many provisioning concepts in the catalog don't translate. SVI
+  creation exists per-switch via routing/interfaces (uncommon — most
+  Meraki deployments use MX appliances for L3). VLAN creation on
+  switching is via Network VLAN Profiles or per-port `vlan` field, not
+  a global switch VLAN database. STP is network-wide RSTP only — no
+  per-VLAN spanning-tree concept.
+
+  Meraki firmware is continuously rolled by Cisco on a network-by-
+  network schedule; operators don't pin a specific version the way they
+  do on IOS-XE. The "version" string most analogous to `show version`
+  output is `firmware` returned by `GET /organizations/{orgId}/devices`
+  alongside `productType` and `model`. This is documented under
+  the VERSION command entry below.
+
+# ── Documentation sources ──────────────────────────────────────────
+sources:
+  - title: "Meraki Dashboard API v1 — Introduction"
+    url: "https://developer.cisco.com/meraki/api-v1/"
+    accessed: "2026-04-28"
+  - title: "Meraki Dashboard API v1 — Authentication"
+    url: "https://developer.cisco.com/meraki/api-v1/authorization/"
+    accessed: "2026-04-28"
+  - title: "Meraki Dashboard API v1 — Rate Limit"
+    url: "https://developer.cisco.com/meraki/api-v1/rate-limit/"
+    accessed: "2026-04-28"
+  - title: "Meraki Dashboard API v1 — Get Organization Devices"
+    url: "https://developer.cisco.com/meraki/api-v1/get-organization-devices/"
+    accessed: "2026-04-28"
+  - title: "Meraki Dashboard API v1 — Get Device Clients"
+    url: "https://developer.cisco.com/meraki/api-v1/get-device-clients/"
+    accessed: "2026-04-28"
+  - title: "Meraki Dashboard API v1 — Create / Get Device Live Tools ARP Table"
+    url: "https://developer.cisco.com/meraki/api-v1/create-device-live-tools-arp-table/"
+    accessed: "2026-04-28"
+  - title: "Meraki Dashboard API v1 — Get Device Live Tools MAC Table"
+    url: "https://developer.cisco.com/meraki/api-v1/get-device-live-tools-mac-table/"
+    accessed: "2026-04-28"
+  - title: "Meraki Dashboard API v1 — Get Device LLDP/CDP"
+    url: "https://developer.cisco.com/meraki/api-v1/get-device-lldp-cdp/"
+    accessed: "2026-04-28"
+  - title: "Meraki Dashboard API v1 — Get Network Topology Link Layer"
+    url: "https://developer.cisco.com/meraki/api-v1/get-network-topology-link-layer/"
+    accessed: "2026-04-28"
+  - title: "Meraki Dashboard API v1 — Get / Update Device Switch Port"
+    url: "https://developer.cisco.com/meraki/api-v1/get-device-switch-port/"
+    accessed: "2026-04-28"
+  - title: "Meraki Dashboard API v1 — Update Device Switch Port"
+    url: "https://developer.cisco.com/meraki/api-v1/update-device-switch-port/"
+    accessed: "2026-04-28"
+  - title: "Meraki Dashboard API v1 — Get Device Switch Ports"
+    url: "https://developer.cisco.com/meraki/api-v1/get-device-switch-ports/"
+    accessed: "2026-04-28"
+  - title: "Meraki Dashboard API v1 — Get Device Switch Ports Statuses"
+    url: "https://developer.cisco.com/meraki/api-v1/get-device-switch-ports-statuses/"
+    accessed: "2026-04-28"
+  - title: "Meraki Dashboard API v1 — Cycle Device Switch Ports"
+    url: "https://developer.cisco.com/meraki/api-v1/cycle-device-switch-ports/"
+    accessed: "2026-04-28"
+  - title: "Meraki Dashboard API v1 — Get / Update Network Switch STP"
+    url: "https://developer.cisco.com/meraki/api-v1/get-network-switch-stp/"
+    accessed: "2026-04-28"
+  - title: "Meraki Dashboard API v1 — Get Device Switch Routing Interfaces"
+    url: "https://developer.cisco.com/meraki/api-v1/get-device-switch-routing-interfaces/"
+    accessed: "2026-04-28"
+  - title: "Meraki Dashboard API v1 — Create Device Switch Routing Interface"
+    url: "https://developer.cisco.com/meraki/api-v1/create-device-switch-routing-interface/"
+    accessed: "2026-04-28"
+  - title: "Meraki Dashboard API v1 — Network Switch Link Aggregations"
+    url: "https://developer.cisco.com/meraki/api-v1/get-network-switch-link-aggregations/"
+    accessed: "2026-04-28"
+  - title: "Meraki Dashboard API v1 — Network Appliance VLANs (create/get)"
+    url: "https://developer.cisco.com/meraki/api-v1/create-network-appliance-vlan/"
+    accessed: "2026-04-28"
+  - title: "Meraki Dashboard API v1 — Create Network VLAN Profile"
+    url: "https://developer.cisco.com/meraki/api-v1/create-network-vlan-profile/"
+    accessed: "2026-04-28"
+  - title: "Meraki Dashboard API v1 — Reboot Device"
+    url: "https://developer.cisco.com/meraki/api-v1/reboot-device/"
+    accessed: "2026-04-28"
+  - title: "Cisco Meraki Documentation — Using the MS Live Tools"
+    url: "https://documentation.meraki.com/Switching/MS_-_Switches/Operate_and_Maintain/Monitoring_and_Reporting/Using_the_MS_Live_Tools"
+    accessed: "2026-04-28"
+  - title: "Cisco Meraki Documentation — Configuring Spanning Tree on Meraki Switches (MS)"
+    url: "https://documentation.meraki.com/Switching/MS_-_Switches/Design_and_Configure/Configuration_Guides/Port_and_VLAN_Configuration/Configuring_Spanning_Tree_on_Meraki_Switches_(MS)"
+    accessed: "2026-04-28"
+  - title: "Cisco Meraki Documentation — Cisco Meraki Dashboard API"
+    url: "https://documentation.meraki.com/Platform_Management/Dashboard_Administration/Operate_and_Maintain/How-Tos/Cisco_Meraki_Dashboard_API"
+    accessed: "2026-04-28"
+  - title: "Cisco Meraki Documentation — VLAN Profiles"
+    url: "https://documentation.meraki.com/Platform_Management/Dashboard_Administration/Design_and_Configure/Configuration_Guides/Routing_and_Firewall/VLAN_Profiles"
+    accessed: "2026-04-28"
+  - title: "Cisco Meraki Documentation — How to Access a Meraki Switch Locally"
+    url: "https://www.stratusinfosystems.com/news/how-to-access-a-meraki-switch-locally/"
+    accessed: "2026-04-28"
+
+# ── Protocol capabilities ──────────────────────────────────────────
+# Meraki MS does not expose NETCONF, RESTCONF, or gNMI. The Dashboard
+# API is the sole programmatic management plane. We document it here as
+# a non-standard `dashboard_api` capability so consumers can branch on
+# vendor identity and route requests accordingly.
+protocol_capabilities:
+  netconf:
+    introduced_in: "n/a"
+    notes: "Not supported. Meraki MS has no NETCONF interface."
+  restconf:
+    introduced_in: "n/a"
+    notes: |
+      Not supported in the YANG / IETF sense. Meraki's REST is the
+      Dashboard API — see `dashboard_api` below — which is a vendor-
+      proprietary REST interface, not a YANG-modeled RESTCONF endpoint.
+  gnmi:
+    introduced_in: "n/a"
+    notes: "Not supported. Meraki MS has no gNMI interface."
+  dashboard_api:
+    introduced_in: "v1 (current; v0 EOL)"
+    base_url: "https://api.meraki.com/api/v1"
+    auth: |
+      Bearer token in the standard `Authorization: Bearer <api_key>`
+      header. Legacy `X-Cisco-Meraki-API-Key: <api_key>` header is
+      still accepted but Meraki recommends Bearer.
+    rate_limit: |
+      10 requests per second per organization (sustained), with a burst
+      allowance of an additional 10 in the first second. NetCaster will
+      need to honor this aggregate limit across all venues that share
+      a Meraki org — fundamentally different shape from per-switch
+      Netmiko sessions, which are independent per device.
+    transport: "HTTPS (TLS) only. No plaintext."
+    notes: |
+      Auth scope is the dashboard administrator account that minted
+      the API key — the key inherits that account's permissions on
+      networks and organizations. Org / network IDs are required path
+      parameters for most endpoints; serials identify individual
+      switches. Plan storage and retrieval of (orgId, networkId, serial)
+      tuples up front when integrating.
+
+# ── Commands ───────────────────────────────────────────────────────
+commands:
+
+  # ── Read operations ─────────────────────────────────────────────
+  - type: ARP_TABLE
+    description: |
+      Display the ARP table on a specific switch. Meraki exposes this
+      via the asynchronous "Live Tools" API: POST a job, then GET the
+      result by ID (or receive a webhook callback).
+    versions:
+      - applies_to: "*"
+        cli: "POST /devices/{serial}/liveTools/arpTable  (then GET /devices/{serial}/liveTools/arpTable/{arpTableId})"
+        sample_output: |
+          {
+            "arpTableId": "1284392014819",
+            "url": "/devices/Q234-ABCD-5678/liveTools/arpTable/1284392014819",
+            "request": {"serial": "Q234-ABCD-5678"},
+            "status": "complete",
+            "entries": [
+              {
+                "ip": "10.0.0.1",
+                "mac": "00:11:22:33:44:55",
+                "vlanId": 100,
+                "interface": "Vlan100",
+                "lastUpdatedAt": "2026-04-28T00:00:00.090210Z"
+              }
+            ]
+          }
+        parser_notes: |
+          JSON response. Top-level `entries` array, one object per ARP
+          entry. `interface` is a Meraki-formatted string (e.g.,
+          "Vlan100", "Port-channel2"). `vlanId` may be null. `status`
+          must be "complete" before parsing — initial POST returns
+          status="new" or "running" and an empty/absent entries array.
+        config_required: ""
+        notes: |
+          Asynchronous job — caller must poll GET until status is
+          "complete" or "ready" (or "failed"). Typical completion is
+          a few seconds. Webhook callbacks are supported via
+          `callback.url` in the POST body to avoid polling.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: MAC_TABLE
+    description: |
+      Display the MAC address table. Like ARP, Meraki uses an async
+      Live Tools job pattern: create then poll.
+    versions:
+      - applies_to: "*"
+        cli: "POST /devices/{serial}/liveTools/macTable  (then GET /devices/{serial}/liveTools/macTable/{macTableId})"
+        sample_output: |
+          {
+            "macTableId": "1284392014819",
+            "url": "/devices/Q234-ABCD-5678/liveTools/macTable/1284392014819",
+            "request": {"serial": "Q234-ABCD-5678"},
+            "status": "complete",
+            "entries": [
+              {"mac": "00:11:22:33:44:55", "port": "Tw1/0/9", "vlanId": 100}
+            ]
+          }
+        parser_notes: |
+          JSON. `entries` is the row list. `port` is the Meraki port
+          identifier (e.g., "Tw1/0/9", "1", "1_MA-MOD-8X10G_3"). No
+          dynamic/static distinction is exposed.
+        config_required: ""
+        notes: |
+          Same async pattern as ARP_TABLE. For a faster, less-canonical
+          alternative, `GET /devices/{serial}/clients` returns currently
+          known clients (MAC + IP + VLAN + switchport) without the
+          job-and-poll latency, but is filtered to "clients" rather
+          than the raw forwarding table.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: NEIGHBOR_DETAIL
+    description: |
+      CDP/LLDP neighbor detail. Meraki returns BOTH CDP and LLDP in a
+      single per-port object (no separate "show cdp neighbor detail").
+    versions:
+      - applies_to: "*"
+        cli: "GET /devices/{serial}/lldpCdp"
+        sample_output: |
+          {
+            "sourceMac": "00:11:22:33:44:55",
+            "ports": {
+              "22": {
+                "lldp": {
+                  "systemName": "core-sw-01",
+                  "systemDescription": "Cisco IOS XE",
+                  "portId": "Gi1/0/22",
+                  "chassisId": "00:11:22:aa:bb:cc",
+                  "managementVlan": 1,
+                  "portVlan": 100,
+                  "managementAddress": "10.0.0.1",
+                  "portDescription": "uplink",
+                  "systemCapabilities": "Bridge",
+                  "sourcePort": "22"
+                },
+                "cdp": {
+                  "platform": "WS-C3850-24XS",
+                  "deviceId": "core-sw-01.example.com",
+                  "model": "WS-C3850-24XS",
+                  "version": "16.12.5",
+                  "portId": "GigabitEthernet1/0/22",
+                  "nativeVlan": 1,
+                  "vtpManagementDomain": "",
+                  "capabilities": "Switch IGMP",
+                  "address": "10.0.0.1",
+                  "sourcePort": "22"
+                },
+                "deviceMac": "...",
+                "device": {"url": "..."}
+              }
+            }
+          }
+        parser_notes: |
+          Top-level `ports` is a dict keyed by port-id string. Each
+          port has up to two sub-objects: `lldp` and `cdp`. Either
+          may be absent if the neighbor advertises only one protocol.
+          Neither requires per-port enabling — Meraki MS always
+          listens for CDP and LLDP.
+        config_required: ""
+        notes: |
+          For network-wide topology (CDP+LLDP across all devices), use
+          GET /networks/{networkId}/topology/linkLayer instead. That
+          endpoint requires at least one MX or MS in the network.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: LLDP_DETAIL
+    description: |
+      LLDP neighbor detail specifically. Meraki does not expose a
+      standalone "LLDP-only" endpoint; the same combined CDP+LLDP
+      endpoint as NEIGHBOR_DETAIL is used and the LLDP sub-object is
+      consumed.
+    versions:
+      - applies_to: "*"
+        cli: "GET /devices/{serial}/lldpCdp"
+        sample_output: |
+          (See NEIGHBOR_DETAIL — same endpoint. Parse only the .lldp
+          sub-object per port.)
+        parser_notes: |
+          Filter to ports where `lldp` is present. Treat absent CDP as
+          a "wired-but-non-Cisco neighbor" signal.
+        config_required: ""
+        notes: |
+          Effectively identical to NEIGHBOR_DETAIL for Meraki. Listed
+          separately to satisfy the catalog's command-type set.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: PORT_CHANNEL_MEMBERS
+    description: |
+      Map link-aggregation groups to physical member ports. Meraki
+      uses LACP only (no static aggregation), and aggregations are
+      configured network-wide (not per-switch).
+    versions:
+      - applies_to: "*"
+        cli: "GET /networks/{networkId}/switch/linkAggregations"
+        sample_output: |
+          [
+            {
+              "id": "NDU2N18yXzM=",
+              "switchPorts": [
+                {"serial": "Q234-ABCD-0001", "portId": "1"},
+                {"serial": "Q234-ABCD-0001", "portId": "2"}
+              ]
+            }
+          ]
+        parser_notes: |
+          Top-level array of LAG objects. Each has an opaque base64-
+          encoded `id` and a `switchPorts` array. Note: members can
+          span switches (cross-stack LAG); group by `serial` to get
+          per-switch member sets. NetCaster's port-channel concept
+          ("LAG = N members on the SAME switch") will need adapting.
+        config_required: ""
+        notes: |
+          Min 2, max 8 ports per LAG. No Etherchannel-style "channel
+          group" number — IDs are opaque base64.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: INTERFACE_CONFIG
+    description: |
+      Per-interface running configuration. On Meraki this is the
+      switch port object, which IS the source of truth (no
+      running-config/startup-config dichotomy — config is stored in
+      the dashboard cloud).
+    versions:
+      - applies_to: "*"
+        cli: "GET /devices/{serial}/switch/ports/{portId}"
+        sample_output: |
+          {
+            "portId": "1",
+            "name": "Workstation 1",
+            "tags": ["AV", "production"],
+            "enabled": true,
+            "poeEnabled": true,
+            "type": "access",
+            "vlan": 10,
+            "voiceVlan": 20,
+            "allowedVlans": "1,3,5-10",
+            "isolationEnabled": false,
+            "rstpEnabled": true,
+            "stpGuard": "disabled",
+            "stpPortFastTrunk": false,
+            "linkNegotiation": "Auto negotiate",
+            "udld": "Alert only",
+            "accessPolicyType": "Open",
+            "stormControlEnabled": true,
+            "daiTrusted": false
+          }
+        parser_notes: |
+          JSON object with the canonical port config. There is no
+          "running" vs "startup" distinction — the dashboard config
+          IS the truth, and the switch hardware reflects it.
+        config_required: ""
+        notes: |
+          Compared to IOS-XE `show running-config interface Gi1/0/1`,
+          this is structured (typed fields) rather than free-form CLI
+          text. Parsers map keys directly rather than line-matching.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: INTERFACE_CONFIG_BULK
+    description: |
+      Bulk per-interface running config. Meraki provides a per-switch
+      list endpoint; for org-wide bulk see notes.
+    versions:
+      - applies_to: "*"
+        cli: "GET /devices/{serial}/switch/ports"
+        sample_output: |
+          [
+            {"portId": "1", "name": "...", "enabled": true, "type": "access", "vlan": 10, ...},
+            {"portId": "2", "name": "...", "enabled": true, "type": "trunk", "allowedVlans": "all", ...}
+          ]
+        parser_notes: |
+          Array of port objects, same schema as INTERFACE_CONFIG. One
+          API call retrieves the full port set for a switch — no
+          per-port iteration required.
+        config_required: ""
+        notes: |
+          For org-wide bulk: GET /organizations/{orgId}/switch/ports/bySwitch
+          returns ports for every switch in the organization in one
+          paginated call. That's faster than iterating switches when
+          NetCaster is doing a venue-wide port census.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: INTERFACE_STATS
+    description: |
+      Per-port runtime state and counters: link status, speed/duplex,
+      errors/warnings, traffic, PoE draw, client count, peer CDP/LLDP.
+    versions:
+      - applies_to: "*"
+        cli: "GET /devices/{serial}/switch/ports/statuses"
+        sample_output: |
+          [
+            {
+              "portId": "1",
+              "enabled": true,
+              "status": "Connected",
+              "isUplink": false,
+              "errors": ["PoE overload"],
+              "warnings": [],
+              "speed": "10 Gbps",
+              "duplex": "full",
+              "spanningTree": {"statuses": ["Forwarding"]},
+              "poe": {"isAllocated": true},
+              "usageInKb": {"total": 40867, "sent": 23008, "recv": 17859},
+              "clientCount": 3,
+              "powerUsageInWh": 55.9,
+              "trafficInKbps": {"total": 2.2, "sent": 1.2, "recv": 1.0},
+              "cdp": {"systemName": "...", "platform": "...", "portId": "..."},
+              "lldp": {"systemName": "...", "chassisId": "..."}
+            }
+          ]
+        parser_notes: |
+          Array, one row per physical port. Note that `errors` and
+          `warnings` are pre-categorized strings (e.g., "PoE overload",
+          "Very high proportion of CRC errors") rather than raw counters.
+          For raw packet counters see GET /devices/{serial}/switch/ports/statuses/packets.
+        config_required: ""
+        notes: |
+          Counters are typed and roll-up — no need to parse "input
+          errors, CRC, frame, overrun" out of free-form text. NetCaster's
+          existing CLI-text parser logic does NOT apply.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: CIVIC_LOCATION
+    description: "LLDP-MED civic location."
+    versions:
+      - applies_to: "*"
+        cli: "NOT_SUPPORTED"
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Meraki MS does not expose LLDP-MED civic location data via
+          the Dashboard API. Civic location is an Aruba / IOS-XE
+          feature in this catalog; not equivalent on Meraki.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: VLAN_LIST
+    description: |
+      List VLANs known to the switch. On Meraki, VLANs are referenced
+      from port objects (`vlan`, `voiceVlan`, `allowedVlans`) and from
+      Network VLAN Profiles. There is no per-switch VLAN database.
+    versions:
+      - applies_to: "*"
+        cli: "GET /networks/{networkId}/vlanProfiles"
+        sample_output: |
+          [
+            {
+              "iname": "Profile1",
+              "name": "Default profile",
+              "isDefault": true,
+              "vlanNames": [
+                {"name": "voice", "vlanId": "20"},
+                {"name": "data", "vlanId": "10"}
+              ],
+              "vlanGroups": [
+                {"name": "guest-block", "vlanIds": "30-39"}
+              ]
+            }
+          ]
+        parser_notes: |
+          For the "what VLANs exist on this switch" question, the
+          authoritative answer is the union of: (a) VLAN IDs referenced
+          in /devices/{serial}/switch/ports[*].vlan and
+          [*].voiceVlan, and (b) IDs in [*].allowedVlans (which is a
+          comma/range string like "1,3,5-10"). The vlanProfiles
+          endpoint is the network-wide named-VLAN definition.
+        config_required: ""
+        notes: |
+          For deployments using an MX appliance for routing, also see
+          GET /networks/{networkId}/appliance/vlans for the
+          appliance-side L3 VLANs. There is no single endpoint that
+          answers "every VLAN this switch participates in" — NetCaster
+          has to assemble it from port records.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: SVI_CONFIG
+    description: |
+      Per-VLAN L3 settings (the SVI / Switched Virtual Interface). On
+      Meraki MS, SVIs are called "routing interfaces" and are uncommon
+      — most deployments terminate L3 on an MX appliance or upstream
+      router, not the switch.
+    versions:
+      - applies_to: "*"
+        cli: "GET /devices/{serial}/switch/routing/interfaces"
+        sample_output: |
+          [
+            {
+              "interfaceId": "1234",
+              "name": "Voice SVI",
+              "mode": "vlan",
+              "subnet": "192.168.20.0/24",
+              "interfaceIp": "192.168.20.2",
+              "serial": "Q234-ABCD-5678",
+              "switchPortId": null,
+              "multicastRouting": "disabled",
+              "vlanId": 20,
+              "uplinkV4": false,
+              "ospfSettings": {"area": "0", "cost": 1, "isPassiveEnabled": true, "networkType": "broadcast"},
+              "defaultGateway": "192.168.20.1"
+            }
+          ]
+        parser_notes: |
+          Array of L3 interface objects. Empty array = switch is L2-
+          only (the common case). Each object has a vlanId mapping to
+          the corresponding access VLAN.
+        config_required: ""
+        notes: |
+          For DHCP relay / static routes / OSPF config tied to the SVI,
+          see related endpoints under
+          /devices/{serial}/switch/routing/interfaces/{interfaceId}/dhcp
+          and /devices/{serial}/switch/routing/staticRoutes.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: STP_VLAN_LIST
+    description: |
+      VLANs participating in spanning tree. Meraki MS uses RSTP only
+      (a single instance), not per-VLAN STP (PVST/MSTP). The concept
+      "list of VLANs with STP enabled" doesn't directly translate.
+    versions:
+      - applies_to: "*"
+        cli: "GET /networks/{networkId}/switch/stp"
+        sample_output: |
+          {
+            "rstpEnabled": true,
+            "stpBridgePriority": [
+              {
+                "switches": ["Q234-ABCD-0001"],
+                "stacks": [],
+                "switchProfiles": [],
+                "stpPriority": 4096
+              }
+            ]
+          }
+        parser_notes: |
+          `rstpEnabled` is a single network-wide boolean. There is NO
+          per-VLAN STP list. Bridge priorities can be set per switch
+          / stack / profile.
+        config_required: ""
+        notes: |
+          NetCaster's PVST-shaped concept "STP_VLAN_LIST = which VLANs
+          have spanning-tree enabled" is degenerate on Meraki: either
+          all VLANs participate (rstpEnabled=true) or none do
+          (rstpEnabled=false). Engine consumers must adapt.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: HARDWARE_IDENTITY
+    description: |
+      Stable hardware identity: serial, MAC, model, network/org
+      assignment. On Meraki this is single-call, network-aware.
+    versions:
+      - applies_to: "*"
+        cli: "GET /organizations/{organizationId}/devices  (or GET /devices/{serial})"
+        sample_output: |
+          {
+            "serial": "Q234-ABCD-5678",
+            "name": "MS210-24-A",
+            "model": "MS210-24",
+            "mac": "00:18:0a:11:22:33",
+            "firmware": "switch-15-21",
+            "productType": "switch",
+            "networkId": "N_24329156",
+            "lanIp": "10.0.0.5",
+            "tags": ["venue:north", "av:true"]
+          }
+        parser_notes: |
+          Single object (per-device GET) or array (org-wide GET).
+          `productType: "switch"` is the filter for MS devices.
+          `firmware` is the rolling firmware tag — see VERSION below.
+        config_required: ""
+        notes: |
+          Stack members: GET /devices/{serial} returns one stack
+          member; the stack as a whole is GET /networks/{networkId}/switch/stacks
+          which lists members. There's no "base MAC of stack" concept
+          — each member has its own MAC.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: HOSTNAME
+    description: "Switch's configured name."
+    versions:
+      - applies_to: "*"
+        cli: "GET /devices/{serial}  (consume the `name` field)"
+        sample_output: |
+          {
+            "serial": "Q234-ABCD-5678",
+            "name": "MS210-24-A",
+            "model": "MS210-24",
+            "mac": "00:18:0a:11:22:33",
+            ...
+          }
+        parser_notes: |
+          The `name` field is the operator-assigned label. May be null
+          if the operator never named the device — fall back to
+          `serial` or `model + lan_ip`.
+        config_required: ""
+        notes: |
+          Unlike IOS/AOS-CX, NetCaster cannot read the hostname from a
+          netmiko prompt — there's no SSH session. The Dashboard `name`
+          field is the closest equivalent.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: VERSION
+    description: |
+      Firmware version string. CRITICAL caveat for the catalog itself:
+      Meraki firmware versions are NOT comparable to IOS-XE/AOS-CX
+      versions. Cisco rolls firmware continuously per network on a
+      stable / beta / candidate track. Operators don't pin a version;
+      they pick a track.
+    versions:
+      - applies_to: "*"
+        cli: "GET /organizations/{organizationId}/devices  (consume `firmware` and `productType`)"
+        sample_output: |
+          {
+            "serial": "Q234-ABCD-5678",
+            "model": "MS210-24",
+            "firmware": "switch-15-21-1",
+            "productType": "switch"
+          }
+        parser_notes: |
+          `firmware` is a rolling tag like "switch-15-21" (track-major-
+          minor). `productType` is one of "switch", "appliance",
+          "wireless", "camera", etc. — use it to filter to MS only.
+        config_required: ""
+        notes: |
+          For the catalog's version-aware command-selection logic
+          (the whole point of this research), Meraki firmware drift is
+          handled by the Meraki cloud, not by NetCaster. Operators
+          control upgrade SCHEDULES (per-network, per-product-type)
+          via /organizations/{orgId}/firmware/upgrades, not specific
+          versions. Consequence: Meraki's `applies_to: "*"` is honest
+          — there are no firmware-version-conditional API differences
+          NetCaster needs to gate on within v1 of the Dashboard API.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  # ── Write operations — port-level ───────────────────────────────
+  - type: PORT_SHUTDOWN
+    description: "Administratively disable an interface."
+    versions:
+      - applies_to: "*"
+        cli: 'PUT /devices/{serial}/switch/ports/{portId}  body: {"enabled": false}'
+        sample_output: |
+          (Returns the updated port object — same schema as INTERFACE_CONFIG.)
+        parser_notes: |
+          Success = HTTP 200 with updated port JSON. Failure = HTTP 4xx
+          with `errors: [...]` body.
+        config_required: ""
+        notes: |
+          The Dashboard reflects the change immediately; physical-link-
+          down propagation takes a few seconds.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: PORT_NO_SHUTDOWN
+    description: "Administratively enable an interface."
+    versions:
+      - applies_to: "*"
+        cli: 'PUT /devices/{serial}/switch/ports/{portId}  body: {"enabled": true}'
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: ""
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: PORT_VLAN_ASSIGN
+    description: |
+      Set the access VLAN of an interface. Note: PORT MUST BE TYPE
+      "access" — issuing only a `vlan` change on a trunk port sets the
+      native VLAN.
+    versions:
+      - applies_to: "*"
+        cli: 'PUT /devices/{serial}/switch/ports/{portId}  body: {"type": "access", "vlan": {vlan_id}}'
+        sample_output: ""
+        parser_notes: |
+          Returned port object will reflect new vlan. If the VLAN ID
+          isn't defined in any reachable VLAN profile or appliance
+          VLAN, Meraki accepts the assignment anyway (no precondition
+          enforcement) but clients on that VLAN won't get DHCP/L3.
+        config_required: ""
+        notes: |
+          Voice VLAN is a separate field (`voiceVlan`). Trunk allowed
+          VLANs use `allowedVlans` (string range, e.g., "1,3,5-10").
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: PORT_POE_OFF
+    description: "Disable PoE on an interface."
+    versions:
+      - applies_to: "*"
+        cli: 'PUT /devices/{serial}/switch/ports/{portId}  body: {"poeEnabled": false}'
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Disabling PoE on a port that has an attached powered device
+          will drop power immediately — same semantics as shutting an
+          IOS-XE port with `power inline never`. No grace period.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: PORT_POE_ON
+    description: "Enable PoE on an interface."
+    versions:
+      - applies_to: "*"
+        cli: 'PUT /devices/{serial}/switch/ports/{portId}  body: {"poeEnabled": true}'
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          For "PoE cycle" (toggle off then on to power-cycle a PD), use
+          POST /devices/{serial}/switch/ports/cycle  with body
+          {"ports": ["{portId}"]} — that's a single atomic call rather
+          than off+on, and it matches NetCaster's existing port-cycle
+          intent. Honor the rate limit (it's a heavier op).
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: PORT_POLICY_PUSH
+    description: |
+      Composite port policy: portfast, BPDU guard, storm control,
+      description. On Meraki this is a single PUT with all relevant
+      fields.
+    versions:
+      - applies_to: "*"
+        cli: |
+          PUT /devices/{serial}/switch/ports/{portId}
+          body: {
+            "name": "{description}",
+            "stpPortFastTrunk": true,         # for trunk; ignored on access
+            "stpGuard": "BPDU guard",         # access portfast equivalent
+            "stormControlEnabled": true,
+            "tags": ["{policy_tag}"]
+          }
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Meraki's `stpGuard` accepts: "disabled", "BPDU guard",
+          "Loop guard", "Root guard". There is no separate "spanning-
+          tree portfast" toggle; access ports always edge by default
+          and `stpGuard: "BPDU guard"` is the closest analog. Storm
+          control thresholds aren't per-port — they're network-wide
+          via /networks/{networkId}/switch/stormControl.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  # ── Write operations — provisioning ──────────────────────────────
+  - type: VLAN_CREATE
+    description: |
+      Create a VLAN definition. Two distinct paths on Meraki depending
+      on what "VLAN" means in context:
+        (a) MX appliance VLAN (an L3 segment with a gateway IP) →
+            POST /networks/{networkId}/appliance/vlans
+        (b) Switch VLAN profile entry (a named L2 VLAN referenced by
+            switch ports) →
+            POST /networks/{networkId}/vlanProfiles  (or update existing)
+      For NetCaster's "smart VLAN suggestion" remediation flow which
+      simply assigns an access port to a VLAN ID, NEITHER endpoint is
+      required — the VLAN ID can be assigned to a port directly via
+      PORT_VLAN_ASSIGN regardless of whether it's defined upstream.
+    versions:
+      - applies_to: "*"
+        cli: |
+          POST /networks/{networkId}/appliance/vlans
+          body: {"id": "{vlan_id}", "name": "{name}", "subnet": "{cidr}", "applianceIp": "{ip_address}"}
+          --- OR ---
+          POST /networks/{networkId}/vlanProfiles
+          body: {"name": "{name}", "iname": "...", "vlanNames": [{"name": "{name}", "vlanId": "{vlan_id}"}], "vlanGroups": []}
+        sample_output: ""
+        parser_notes: |
+          Appliance VLAN create returns the new VLAN object including
+          assigned `id`, subnet, and DHCP settings. VLAN profile create
+          returns the new profile with `iname` (machine-stable identifier).
+        config_required: ""
+        notes: |
+          The appliance-vlan path requires an MX in the network. The
+          vlanProfile path does NOT require an MX, but the profile must
+          be ASSIGNED to switches/stacks/networks via separate
+          endpoints (e.g.,
+          PUT /networks/{networkId}/vlanProfiles/assignments/reassign)
+          before ports can use named-VLAN references.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: SVI_CREATE
+    description: |
+      Create a Switch Virtual Interface for a VLAN. On Meraki MS this
+      is a routing interface, and as noted in SVI_CONFIG, it's
+      uncommon — most deployments use an upstream MX or third-party
+      router for L3.
+    versions:
+      - applies_to: "*"
+        cli: |
+          POST /devices/{serial}/switch/routing/interfaces
+          body: {
+            "name": "{name}",
+            "subnet": "{cidr}",
+            "interfaceIp": "{ip_address}",
+            "vlanId": {vlan_id},
+            "defaultGateway": "{gateway_ip}",
+            "multicastRouting": "disabled"
+          }
+        sample_output: ""
+        parser_notes: |
+          Returns the new interface object with assigned `interfaceId`.
+        config_required: ""
+        notes: |
+          Switch must support L3 (MS210/MS225 do not; MS250+, MS350+,
+          MS390+, MS425+ do, in mixed measure). DHCP relay, OSPF, and
+          static routes are separate sub-endpoints under the interface.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: STP_VLAN_ENABLE
+    description: |
+      Enable spanning-tree for a VLAN. As with STP_VLAN_LIST, Meraki
+      uses single-instance RSTP — there is no per-VLAN enable.
+    versions:
+      - applies_to: "*"
+        cli: 'PUT /networks/{networkId}/switch/stp  body: {"rstpEnabled": true, "stpBridgePriority": [...]}'
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          The "per-VLAN" semantic isn't expressible. Either RSTP is on
+          for the whole network (covering all VLANs) or off. NetCaster's
+          PVST-shaped engine method should be ADAPTED for Meraki to
+          either: (a) no-op when STP is already enabled, or (b) enable
+          network-wide RSTP (one-time, then no-op).
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  # ── Persistence ─────────────────────────────────────────────────
+  - type: SAVE_CONFIG
+    description: |
+      Copy running-config to startup-config. NOT APPLICABLE on Meraki
+      — the Dashboard cloud is the single source of truth and there is
+      no running/startup distinction. PUTs are atomic and persistent.
+    versions:
+      - applies_to: "*"
+        cli: "NOT_SUPPORTED"
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          NetCaster's `SAVE_CONFIG` step after a write is a NO-OP for
+          Meraki and should be elided in the abstract command sequence.
+          The PUT itself was the persistence event.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null

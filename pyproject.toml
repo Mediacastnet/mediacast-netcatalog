@@ -1,0 +1,45 @@
+[build-system]
+requires = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "mediacast-netcatalog"
+version = "0.1.0"
+description = "Vendor command catalog + version matcher + protocol probe for multi-vendor network automation."
+readme = "README.md"
+license = { text = "MIT OR Apache-2.0" }
+authors = [
+    { name = "Robare Pruyn", email = "robare@mediacastnet.com" },
+    { name = "Mediacast Network Solutions" },
+]
+requires-python = ">=3.9"
+keywords = ["networking", "cisco", "aruba", "juniper", "automation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Networking",
+    "Topic :: System :: Systems Administration",
+]
+
+[project.urls]
+Homepage = "https://github.com/Mediacastnet/mediacast-netcatalog"
+Repository = "https://github.com/Mediacastnet/mediacast-netcatalog"
+Issues = "https://github.com/Mediacastnet/mediacast-netcatalog/issues"
+Changelog = "https://github.com/Mediacastnet/mediacast-netcatalog/blob/main/CHANGELOG.md"
+
+[tool.maturin]
+features = ["python"]
+module-name = "mediacast_netcatalog._native"
+python-source = "python"
+strip = true

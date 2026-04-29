@@ -1,0 +1,1208 @@
+# ── Vendor identity ────────────────────────────────────────────────
+vendor: cisco_ios
+display_name: "Cisco IOS / IOS-XE"
+manufacturer: "Cisco Systems"
+product_family: "Catalyst / IOS-XE (9000, 3850/3650, 2960, ISR/ASR)"
+notes: |
+  Single catalog covers IOS classic (12.x / 15.x) and IOS-XE — they
+  share command surface for the abstract types in scope. Treat
+  IOS-XE 17.x (Cupertino → Dublin → 17.15+) as the baseline; minor
+  parser drift on IOS classic is called out per entry.
+
+  The existing NetCaster handler (`netcaster_engine/platforms/cisco_ios.py`)
+  hardcodes a single CLI string per command and is firmware-blind. This
+  catalog is what a future runtime would consume to pick the right
+  CLI / NETCONF / RESTCONF / gNMI implementation per (vendor, firmware,
+  abstract command) tuple — closing tech-debt entry #18.
+
+  Notable cross-cutting drift the parser side already half-handles:
+  - Cisco-dotted MAC format (xxxx.xxxx.xxxx) is universal across
+    IOS / IOS-XE; no version drift.
+  - `show ip arp` on IOS classic 12.x has 5 columns (no "Protocol");
+    15.x and IOS-XE add it, making 6.
+  - `show vlan brief` adds the `act/unsup` status for reserved VLANs
+    1002–1005 starting in 15.x; 12.x just shows `active`.
+  - `show etherchannel summary` gained the `H` (Hot-standby) flag in
+    15.x. Member ports may wrap to continuation lines on stacks with
+    >8 members per channel — handler accounts for this.
+
+# ── Documentation sources ──────────────────────────────────────────
+sources:
+  - title: "Programmability Configuration Guide, Cisco IOS XE 17.15.x — NETCONF Protocol"
+    url: "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/prog/configuration/1715/b_1715_programmability_cg/m_1715_prog_yang_netconf.html"
+    accessed: "2026-04-28"
+  - title: "Programmability Configuration Guide, Cisco IOS XE 17.15.x — RESTCONF Protocol"
+    url: "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/prog/configuration/1715/b_1715_programmability_cg/m_1715_prog_restconf.html"
+    accessed: "2026-04-28"
+  - title: "Programmability Configuration Guide, Cisco IOS XE 17.15.x — gNMI Protocol"
+    url: "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/prog/configuration/1715/b_1715_programmability_cg/m_1715_prog_gnmi.html"
+    accessed: "2026-04-28"
+  - title: "Programmability Configuration Guide, Cisco IOS XE Dublin 17.10.x — gNMI Protocol"
+    url: "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/prog/configuration/1710/b_1710_programmability_cg/m_1710_prog_gnmi.html"
+    accessed: "2026-04-28"
+  - title: "Configure NETCONF/YANG for Cisco IOS XE 16.X Platforms"
+    url: "https://www.cisco.com/c/en/us/support/docs/storage-networking/management/200933-YANG-NETCONF-Configuration-Validation.html"
+    accessed: "2026-04-28"
+  - title: "Open IOS XE FAQ"
+    url: "https://www.cisco.com/c/en/us/products/collateral/ios-nx-os-software/ios-xe/nb-06-cisco-ios-xe-faq-en.html"
+    accessed: "2026-04-28"
+  - title: "Cisco IOS-XE YANG models repository (YangModels/yang)"
+    url: "https://github.com/YangModels/yang/tree/main/vendor/cisco/xe"
+    accessed: "2026-04-28"
+  - title: "Cisco-IOS-XE-arp-oper YANG (xe/16111)"
+    url: "https://github.com/YangModels/yang/blob/main/vendor/cisco/xe/16111/Cisco-IOS-XE-arp-oper.yang"
+    accessed: "2026-04-28"
+  - title: "Cisco-IOS-XE-matm-oper YANG (xe/16121)"
+    url: "https://github.com/YangModels/yang/blob/main/vendor/cisco/xe/16121/Cisco-IOS-XE-matm-oper.yang"
+    accessed: "2026-04-28"
+  - title: "Cisco-IOS-XE-cdp-oper YANG (xe/1721)"
+    url: "https://github.com/YangModels/yang/blob/main/vendor/cisco/xe/1721/Cisco-IOS-XE-cdp-oper.yang"
+    accessed: "2026-04-28"
+  - title: "Cisco-IOS-XE-lldp-oper YANG (xe/1651)"
+    url: "https://github.com/YangModels/yang/blob/main/vendor/cisco/xe/1651/Cisco-IOS-XE-lldp-oper.yang"
+    accessed: "2026-04-28"
+  - title: "Cisco-IOS-XE-interfaces-oper YANG (xe/1721)"
+    url: "https://github.com/YangModels/yang/blob/main/vendor/cisco/xe/1721/Cisco-IOS-XE-interfaces-oper.yang"
+    accessed: "2026-04-28"
+  - title: "Cisco-IOS-XE-vlan-oper YANG (xe/1681)"
+    url: "https://github.com/YangModels/yang/blob/main/vendor/cisco/xe/1681/Cisco-IOS-XE-vlan-oper.yang"
+    accessed: "2026-04-28"
+  - title: "Cisco-IOS-XE-spanning-tree-oper YANG (xe/1691)"
+    url: "https://github.com/YangModels/yang/blob/main/vendor/cisco/xe/1691/Cisco-IOS-XE-spanning-tree-oper.yang"
+    accessed: "2026-04-28"
+  - title: "Cisco-IOS-XE-poe-oper YANG (xe/1791)"
+    url: "https://github.com/YangModels/yang/blob/main/vendor/cisco/xe/1791/Cisco-IOS-XE-poe-oper.yang"
+    accessed: "2026-04-28"
+  - title: "Cisco-IOS-XE-device-hardware-oper YANG (xe/1721)"
+    url: "https://github.com/YangModels/yang/blob/main/vendor/cisco/xe/1721/Cisco-IOS-XE-device-hardware-oper.yang"
+    accessed: "2026-04-28"
+  - title: "Catalyst Programmability and Automation (white paper)"
+    url: "https://www.cisco.com/c/en/us/products/collateral/switches/catalyst-9300-series-switches/catalyst-programmability-automation-wp.html"
+    accessed: "2026-04-28"
+  - title: "Layer 2 Configuration Guide, Cisco IOS XE 17.15.x (Catalyst 9300) — Configuring Spanning Tree Protocol"
+    url: "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-15/configuration_guide/lyr2/b_1715_lyr2_9300_cg/configuring_spanning_tree_protocol.html"
+    accessed: "2026-04-28"
+  - title: "Interface and Hardware Components Configuration Guide, Cisco IOS XE Dublin 17.11.x (Catalyst 9300) — Configuring PoE"
+    url: "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/software/release/17-11/configuration_guide/int_hw/b_1711_int_and_hw_9300_cg/configuring_poe.html"
+    accessed: "2026-04-28"
+  - title: "Interface and Hardware Components Configuration Guide, Cisco IOS XE 17.17.x (Catalyst 9500) — Configuring LLDP, LLDP-MED, and Wired Location Service"
+    url: "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9500/software/release/17-17/configuration_guide/int_hw/b_1717_int_and_hw_9500_cg/configuring_lldp__lldp_med__and_wired_location_service.html"
+    accessed: "2026-04-28"
+  - title: "Configuration Fundamentals Command Reference, Cisco IOS XE — show inventory / show version"
+    url: "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/fundamentals/command/xe3se/3850/fundamentals-xe-3se-3850-cr-book/show-commands-xe-3se.html"
+    accessed: "2026-04-28"
+  - title: "Troubleshoot EtherChannels on Catalyst 9000 Switches"
+    url: "https://www.cisco.com/c/en/us/support/docs/switches/catalyst-9300-series-switches/220367-troubleshoot-etherchannels-on-catalyst-9.html"
+    accessed: "2026-04-28"
+  - title: "Existing handler — netcaster_engine/platforms/cisco_ios.py"
+    url: "internal://netcaster_engine/platforms/cisco_ios.py"
+    accessed: "2026-04-28"
+
+# ── Protocol capabilities ──────────────────────────────────────────
+# Per Cisco's Open IOS XE FAQ, IOS XE 16.3.1 first shipped NETCONF on
+# ASR/ISR; Catalyst 3650/3850 picked it up at 16.5.1b/16.6.2; the
+# Catalyst 9000 line shipped with NETCONF from launch (16.6+).
+# RESTCONF lit up at 16.6.x. gNMI introduced as a dial-in subscription
+# transport in 16.10.1 (Gibraltar); gNMI Set / config support became
+# generally usable at 17.3+; PROTO encoding added in 17.11.1.
+protocol_capabilities:
+  netconf:
+    introduced_in: "16.6"
+    notes: |
+      Originally 16.3.1 on routers; Catalyst-wide baseline is 16.6.
+      Requires `netconf-yang` global config. Default port 830/TCP over
+      SSH. Use `Cisco-IOS-XE-*-oper` modules for read state, the native
+      `Cisco-IOS-XE-native` model for config.
+  restconf:
+    introduced_in: "16.6"
+    notes: |
+      Requires `restconf` global config and an HTTPS server
+      (`ip http secure-server`). Default JSON encoding via
+      `Accept: application/yang-data+json`. URL prefix
+      `/restconf/data/`.
+  gnmi:
+    introduced_in: "16.10"
+    notes: |
+      Introduced in IOS-XE Gibraltar 16.10.1 as a dial-in telemetry
+      transport (Subscribe). Get/Set RPCs and full config reach were
+      hardened through 17.3–17.6. gRPC default TCP/9339; enable with
+      `gnmi-yang` and `gnmi-yang server`. PROTO encoding added in
+      17.11.1; JSON_IETF is the broadly-portable default.
+
+# ── Commands ───────────────────────────────────────────────────────
+commands:
+
+  # ── Read operations ────────────────────────────────────────────
+  - type: ARP_TABLE
+    description: "Display the ARP table"
+    versions:
+      - applies_to: ">=15.0"
+        cli: "show ip arp"
+        sample_output: |
+          Protocol  Address          Age (min)  Hardware Addr   Type   Interface
+          Internet  10.0.0.1                -   001b.5377.fbe1  ARPA   Vlan10
+          Internet  10.0.0.42               0   aabb.cc00.0001  ARPA   GigabitEthernet1/0/24
+          Internet  10.0.0.55               9   0000.0c59.f892  ARPA   Vlan10
+        parser_notes: |
+          6 columns space-separated. Hardware Addr is Cisco-dotted
+          (xxxx.xxxx.xxxx). Age "-" = router's own interface (never
+          ages); "Incomplete" = unresolved entry. Strip the header
+          row before iterating. Existing handler regex anchors on
+          "Internet" then captures IP / Age (digits or "-") / MAC.
+        config_required: ""
+        notes: |
+          Handler ships `show ip arp`; the catalog matches.
+          NetCaster also accepts `show arp` (alias) but the canonical
+          form is `show ip arp`.
+      - applies_to: ">=12.0,<15.0"
+        cli: "show ip arp"
+        sample_output: |
+          Internet  171.69.233.22       9  0000.0c59.f892  ARPA  Ethernet0/0
+        parser_notes: |
+          IOS classic 12.x has the same column set but no header row
+          on some images. The "Internet"-anchored regex still works.
+        config_required: ""
+        notes: |
+          Marked unverified for 12.x — captured from Cisco's legacy
+          command reference; modern lab fleet rarely runs 12.x.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-arp-oper"
+        data_path: "/arp-data/arp-vrf/arp-oper"
+        firmware_required: ">=16.11.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-arp-oper:arp-data"
+        firmware_required: ">=16.11.1"
+      gnmi:
+        path: "/Cisco-IOS-XE-arp-oper:arp-data"
+        firmware_required: ">=17.3"
+
+  - type: MAC_TABLE
+    description: "Display the MAC address table"
+    versions:
+      - applies_to: ">=15.0"
+        cli: "show mac address-table"
+        sample_output: |
+                    Mac Address Table
+          -------------------------------------------
+
+          Vlan    Mac Address       Type        Ports
+          ----    -----------       --------    -----
+           All    0100.0ccc.cccc    STATIC      CPU
+             1    aabb.cc00.0001    DYNAMIC     Gi1/0/24
+           100    9c54.1631.8bd1    DYNAMIC     Te2/1/1
+           129    7483.c279.3a4c    DYNAMIC     Gi1/0/14
+          Total Mac Addresses for this criterion: 4
+        parser_notes: |
+          4 columns. VLAN can be numeric or "All" (system entries
+          like CPU broadcast — skip these). MAC is Cisco-dotted.
+          Type ∈ {DYNAMIC, STATIC, SECURE}. Ports = single
+          interface for unicast; "CPU" / "Drop" for system entries.
+          Existing handler regex requires VLAN to be \d+, which
+          implicitly skips "All" / "Drop" / "CPU" rows.
+        config_required: ""
+        notes: |
+          IOS classic ≤ 12.1 used `show mac-address-table`
+          (hyphenated, no space). 15.x onward both forms are
+          accepted but `show mac address-table` is canonical.
+      - applies_to: ">=12.0,<15.0"
+        cli: "show mac-address-table"
+        sample_output: |
+          Dynamic Address Count:                 12
+          Secure Address Count:                   0
+          Static  Address (User-defined) Count:   0
+          System Self Address Count:             16
+
+          Non-source Miss Address Count:          0
+          Total MAC addresses:                   28
+
+          Non-static Address Table:
+          Destination Address  Address Type  VLAN  Destination Port
+          -------------------  ------------  ----  --------------------
+          0010.0d40.37ff       Dynamic         1   FastEthernet0/1
+        parser_notes: |
+          Different column order on classic 12.x; the existing
+          handler does NOT parse this format — kept for catalog
+          completeness. Marked unverified.
+        config_required: ""
+        notes: "Deprecated form — only relevant for legacy 2950/3550 stacks."
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-matm-oper"
+        data_path: "/matm-oper-data/matm-table/matm-mac-entry"
+        firmware_required: ">=16.12.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-matm-oper:matm-oper-data"
+        firmware_required: ">=16.12.1"
+      gnmi:
+        path: "/Cisco-IOS-XE-matm-oper:matm-oper-data"
+        firmware_required: ">=17.3"
+
+  - type: NEIGHBOR_DETAIL
+    description: "CDP neighbor detail (Cisco's preferred discovery protocol)"
+    versions:
+      - applies_to: ">=12.0"
+        cli: "show cdp neighbors detail"
+        sample_output: |
+          -------------------------
+          Device ID: switch-edge-12.example.com
+          Entry address(es):
+            IP address: 10.1.1.42
+          Platform: cisco WS-C3850-48P,  Capabilities: Router Switch IGMP
+          Interface: TenGigabitEthernet2/1/1,  Port ID (outgoing port): TenGigabitEthernet1/1/2
+          Holdtime : 174 sec
+
+          Version :
+          Cisco IOS Software, IOS-XE Software, Catalyst L3 Switch Software (CAT3K_CAA-UNIVERSALK9-M), Version 16.12.7
+
+          advertisement version: 2
+          Duplex: full
+          Management address(es):
+            IP address: 10.1.1.42
+
+          -------------------------
+          Device ID: ap-floor-2.example.com
+          Entry address(es):
+            IP address: 10.1.99.50
+          Platform: cisco AIR-AP3802I-B-K9, Capabilities: Trans-Bridge
+          Interface: GigabitEthernet1/0/24,  Port ID (outgoing port): GigabitEthernet0
+        parser_notes: |
+          Neighbor blocks separated by lines of dashes (≥10).
+          Per-block fields:
+            Device ID:     <fqdn or hostname>
+            IP address:    <ipv4>          (under "Entry address(es):" or "Management address(es):")
+            Platform:      <model>,        (comma terminates the model, then Capabilities)
+            Capabilities:  <list>          (after the comma on the Platform line, or its own field)
+            Interface:     <local intf>,   (TRAILING COMMA — strip it; Cisco's quirk)
+            Port ID (outgoing port): <remote intf>
+          Existing handler strips the trailing comma off the local
+          interface name — without that fix, port-channel-member
+          mapping fails because "Te2/1/1," ≠ "Te2/1/1".
+        config_required: "cdp run\n"
+        notes: |
+          CDP is a Cisco-proprietary L2 discovery protocol; default-on
+          on IOS/IOS-XE. Some hardened deployments disable CDP — the
+          engine falls back to LLDP via `LLDP_DETAIL`.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-cdp-oper"
+        data_path: "/cdp-neighbor-details/cdp-neighbor-detail"
+        firmware_required: ">=16.6.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-cdp-oper:cdp-neighbor-details"
+        firmware_required: ">=16.6.1"
+      gnmi:
+        path: "/Cisco-IOS-XE-cdp-oper:cdp-neighbor-details"
+        firmware_required: ">=17.3"
+
+  - type: LLDP_DETAIL
+    description: "LLDP neighbor detail (used as fallback when CDP is off, or for non-Cisco neighbors)"
+    versions:
+      - applies_to: ">=12.2"
+        cli: "show lldp neighbors detail"
+        sample_output: |
+          ------------------------------------------------
+          Local Intf: Gi1/0/12
+          Chassis id: 001b.5377.fbe1
+          Port id: Gi0/24
+          Port Description: uplink to dist-12
+          System Name: dist-12.example.com
+
+          System Description:
+          Cisco IOS Software, C3560 Software (C3560-IPSERVICESK9-M), Version 15.0(2)SE11
+
+          Time remaining: 95 seconds
+          System Capabilities: B,R
+          Enabled Capabilities: B,R
+          Management Addresses:
+            IP: 10.1.1.50
+        parser_notes: |
+          Same dashed-line block separator as CDP. Field labels differ:
+            Local Intf:   <local intf>
+            Port id:      <remote intf>      (lowercase "id")
+            System Name:  <fqdn>
+            Management Addresses:\n  IP: <ipv4>   (or "Management Address: <ipv4>")
+            System Description: <multi-line until blank line>
+        config_required: "lldp run\n"
+        notes: |
+          LLDP is OFF by default on IOS/IOS-XE — must explicitly
+          `lldp run` globally. Default-off bites discovery audits
+          when CDP is disabled but LLDP wasn't enabled. Captured as
+          gotcha in handler comments.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-lldp-oper"
+        data_path: "/lldp-entries/lldp-entry"
+        firmware_required: ">=16.6.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-lldp-oper:lldp-entries"
+        firmware_required: ">=16.6.1"
+      gnmi:
+        path: "/Cisco-IOS-XE-lldp-oper:lldp-entries"
+        firmware_required: ">=17.3"
+
+  - type: PORT_CHANNEL_MEMBERS
+    description: "Map port-channel logical interfaces to physical members"
+    versions:
+      - applies_to: ">=12.2"
+        cli: "show etherchannel summary"
+        sample_output: |
+          Flags:  D - down        P - bundled in port-channel
+                  I - stand-alone s - suspended
+                  H - Hot-standby (LACP only)
+                  R - Layer3      S - Layer2
+                  U - in use      f - failed to allocate aggregator
+
+                  M - not in use, minimum links not met
+                  u - unsuitable for bundling
+                  w - waiting to be aggregated
+                  d - default port
+
+                  A - formed by Auto LAG
+
+          Number of channel-groups in use: 2
+          Number of aggregators:           2
+
+          Group  Port-channel  Protocol    Ports
+          ------+-------------+-----------+-----------------------------------------------
+          1      Po1(SU)         LACP      Gi1/0/49(P)  Gi1/0/50(P)
+          2      Po2(SU)         LACP      Te1/0/1(P)   Te1/0/2(P)   Te2/1/1(P)
+                                            Te2/1/2(P)
+        parser_notes: |
+          Fixed-width-ish columns; Group is leading whitespace +
+          digits. Port-channel is "Po<n>(<flags>)". Members on the
+          same line as the header AND continuation lines (indented
+          past the Group column with no leading digit). Member flags
+          in parens: P=bundled, s=suspended, D=down, H=hot-standby.
+          Existing handler captures all members regardless of flag —
+          CDP/LLDP may still be reported on suspended members.
+        config_required: ""
+        notes: |
+          IOS-XE on Catalyst 9000 ALSO accepts `show port-channel
+          summary` as an alias starting in 16.6+; output is identical.
+          The H (Hot-standby) flag was introduced with LACP support
+          in 12.2(33)SXH on Cat6500 and is universal on modern IOS-XE.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-etherchannel-oper"
+        data_path: "/etherchannel-data"
+        firmware_required: ">=17.1.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-etherchannel-oper:etherchannel-data"
+        firmware_required: ">=17.1.1"
+      gnmi: null
+
+  - type: INTERFACE_CONFIG
+    description: "Show running-config for a single interface"
+    versions:
+      - applies_to: ">=12.0"
+        cli: "show running-config interface {interface}"
+        sample_output: |
+          Building configuration...
+
+          Current configuration : 312 bytes
+          !
+          interface GigabitEthernet1/0/24
+           description AP-Drop-203
+           switchport access vlan 30
+           switchport mode access
+           switchport voice vlan 31
+           power inline auto
+           spanning-tree portfast
+           spanning-tree bpduguard enable
+           storm-control broadcast level 1.00
+          end
+        parser_notes: |
+          Multi-line; one config-mode statement per indented line.
+          The handler's bulk parser (`parse_interface_configs`)
+          extracts portfast / bpduguard / storm-control / description /
+          location civic-location-id via per-line regexes.
+        config_required: ""
+        notes: |
+          Per-interface form is slow on big stacks. NetCaster prefers
+          `INTERFACE_CONFIG_BULK` for inventory; this single form is
+          used in venue-compliance drilldown and in port-action
+          pre-write verification.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-native"
+        data_path: "/native/interface/{type}/{name}"
+        firmware_required: ">=16.6.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-native:native/interface/{type}={name}"
+        firmware_required: ">=16.6.1"
+      gnmi:
+        path: "/Cisco-IOS-XE-native:native/interface/{type}[name={name}]"
+        firmware_required: ">=17.3"
+
+  - type: INTERFACE_CONFIG_BULK
+    description: "Show all interface running-config sections in one shot"
+    versions:
+      - applies_to: ">=15.0"
+        cli: "show running-config | section ^interface"
+        sample_output: |
+          interface GigabitEthernet1/0/1
+           description Phone-101
+           switchport access vlan 30
+           switchport voice vlan 31
+           spanning-tree portfast
+           spanning-tree bpduguard enable
+          !
+          interface GigabitEthernet1/0/2
+           description AP-Floor-2
+           switchport access vlan 30
+           power inline auto
+           location civic-location-id 1
+          !
+          interface Vlan30
+           ip address 10.1.30.1 255.255.255.0
+        parser_notes: |
+          Splits on `(?=^interface\s)` MULTILINE. Per-block regexes
+          extract the same fields as INTERFACE_CONFIG. Note that
+          `interface Vlan<n>` blocks ALSO match — handler relies on
+          this to feed SVI parsing too, but in practice
+          SVI_CONFIG uses a separate filter to keep parsing clean.
+        config_required: ""
+        notes: |
+          The `| section ^interface` filter is IOS-XE / 15.x; classic
+          12.x lacks `| section` and has to use `| begin interface`
+          which captures everything after the first interface block.
+          Catalog flags this as a 15.0 minimum.
+      - applies_to: ">=12.0,<15.0"
+        cli: "show running-config | begin interface"
+        sample_output: |
+          interface GigabitEthernet0/1
+           switchport access vlan 30
+           spanning-tree portfast
+          !
+          (... continues through end of running-config ...)
+        parser_notes: "Same per-block parse but caller must trim trailing global config."
+        config_required: ""
+        notes: "Marked unverified — modern fleet runs 15.x+."
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-native"
+        data_path: "/native/interface"
+        firmware_required: ">=16.6.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-native:native/interface"
+        firmware_required: ">=16.6.1"
+      gnmi:
+        path: "/Cisco-IOS-XE-native:native/interface"
+        firmware_required: ">=17.3"
+
+  - type: INTERFACE_STATS
+    description: "Detailed interface state and counters"
+    versions:
+      - applies_to: ">=12.0"
+        cli: "show interface {interface}"
+        sample_output: |
+          GigabitEthernet1/0/1 is up, line protocol is up (connected)
+            Hardware is Gigabit Ethernet, address is aabb.cc00.0001 (bia aabb.cc00.0001)
+            Description: AP-Drop-203
+            MTU 1500 bytes, BW 1000000 Kbit/sec, DLY 10 usec,
+               reliability 255/255, txload 1/255, rxload 1/255
+            Encapsulation ARPA, loopback not set
+            Keepalive set (10 sec)
+            Full-duplex, 1000Mb/s, media type is 10/100/1000BaseTX
+            input flow-control is off, output flow-control is unsupported
+            Auto-MDIX on (operational: on)
+            ARP type: ARPA, ARP Timeout 04:00:00
+            Last input 00:00:00, output 00:00:00, output hang never
+            Last clearing of "show interface" counters never
+            Input queue: 0/2000/0/0 (size/max/drops/flushes); Total output drops: 0
+            Queueing strategy: fifo
+            Output queue: 0/40 (size/max)
+            5 minute input rate 12000 bits/sec, 22 packets/sec
+            5 minute output rate 8000 bits/sec, 14 packets/sec
+            30 second input rate 11000 bits/sec, 21 packets/sec
+            30 second output rate 7000 bits/sec, 13 packets/sec
+               1234567 packets input, 891234567 bytes, 0 no buffer
+               Received 12345 broadcasts (0 IP multicasts)
+               0 runts, 0 giants, 0 throttles
+               0 input errors, 0 CRC, 0 frame, 0 overrun, 0 ignored
+               0 watchdog, 0 multicast, 0 pause input
+               0 input packets with dribble condition detected
+               9876543 packets output, 4567890123 bytes, 0 underruns
+               0 output errors, 0 collisions, 1 interface resets
+        parser_notes: |
+          The handler's `parse_interface_stats` extracts:
+            - status / line-protocol from line 1
+            - description (optional)
+            - 30-second input/output rate (bps + pps)
+            - 5-minute input/output rate (bps) — IOS-XE only
+            - input/output packet totals
+            - input/output errors, CRC errors
+          Parser tolerates missing 5-minute rates for classic IOS.
+        config_required: ""
+        notes: |
+          Format is stable across IOS / IOS-XE 12.x → 17.x with the
+          notable exception that 5-minute rate lines are IOS-XE-only.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-interfaces-oper"
+        data_path: "/interfaces/interface"
+        firmware_required: ">=16.6.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-interfaces-oper:interfaces/interface={name}"
+        firmware_required: ">=16.6.1"
+      gnmi:
+        path: "/Cisco-IOS-XE-interfaces-oper:interfaces/interface[name={name}]"
+        firmware_required: ">=17.3"
+
+  - type: CIVIC_LOCATION
+    description: "LLDP-MED civic location identifier definitions (used for drop-ID resolution)"
+    versions:
+      - applies_to: ">=15.0"
+        cli: "show running-config | section ^location"
+        sample_output: |
+          location civic-location identifier 1
+           building "Main"
+           floor "2"
+           room "203"
+           name "Drop-101"
+           additional-location-information "AP cluster A"
+          !
+          location civic-location identifier 2
+           building "Annex"
+           floor "1"
+           name "Drop-Reception"
+          !
+        parser_notes: |
+          Splits on `(?=^location civic-location identifier\s)`
+          MULTILINE. Per-block: prefer the `name` field (Cisco's
+          free-form drop-ID slot); fall back to `building / floor /
+          room` concatenation; finally `additional-location-information`.
+          Handler returns dict of identifier → human-readable string.
+        config_required: ""
+        notes: |
+          NetCaster uses civic-location-id on each access port (set
+          via `location civic-location-id <n>` in interface config)
+          as a venue-friendly "drop ID" — the human label of where a
+          port physically lands. Handler resolves the ID via
+          `enrich_civic_locations`.
+
+          IOS classic 12.x has the same syntax but `| section` is
+          unavailable; use `show running-config | include
+          civic-location` and a wider parse.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-native"
+        data_path: "/native/location/civic-location"
+        firmware_required: ">=16.6.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-native:native/location/civic-location"
+        firmware_required: ">=16.6.1"
+      gnmi: null
+
+  - type: VLAN_LIST
+    description: "List of VLANs on the switch"
+    versions:
+      - applies_to: ">=12.0"
+        cli: "show vlan brief"
+        sample_output: |
+          VLAN Name                             Status    Ports
+          ---- -------------------------------- --------- -------------------------------
+          1    default                          active    Gi1/0/1, Gi1/0/2, Gi1/0/3
+          10   DATA                             active    Gi1/0/4, Gi1/0/5
+          20   VOICE                            active
+          30   AP                               active
+          99   MGMT                             active    Gi1/0/48
+          1002 fddi-default                     act/unsup
+          1003 token-ring-default               act/unsup
+          1004 fddinet-default                  act/unsup
+          1005 trnet-default                    act/unsup
+        parser_notes: |
+          Regex anchors on `^(\d+)\s+(\S+)\s+(active|sus|act/unsup)`.
+          Skip the reserved range 1002–1005 and VLAN 1 (default —
+          NetCaster doesn't surface it as a venue-managed VLAN).
+        config_required: ""
+        notes: |
+          VLANs may be defined but with no member ports listed in the
+          Ports column — that's normal (VLANs without trunk/access
+          assignments still appear). The handler relies on this.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-vlan-oper"
+        data_path: "/vlans/vlan"
+        firmware_required: ">=16.8.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-vlan-oper:vlans"
+        firmware_required: ">=16.8.1"
+      gnmi:
+        path: "/Cisco-IOS-XE-vlan-oper:vlans"
+        firmware_required: ">=17.3"
+
+  - type: SVI_CONFIG
+    description: "SVI / VLAN interface running-config sections"
+    versions:
+      - applies_to: ">=15.0"
+        cli: "show running-config | section interface Vlan"
+        sample_output: |
+          interface Vlan1
+           no ip address
+           shutdown
+          !
+          interface Vlan10
+           description DATA-VLAN
+           ip address 10.1.10.1 255.255.255.0
+           ip helper-address 10.1.1.10
+           ip helper-address 10.1.1.11
+          !
+          interface Vlan30
+           description AP-VLAN
+           ip address 10.1.30.1 255.255.255.0
+           ip helper-address 10.1.1.10
+           ip pim sparse-mode
+        parser_notes: |
+          Splits on `(?=^interface Vlan)` MULTILINE. Per-block
+          extracts: ip address (IP + mask → CIDR), shutdown sentinel,
+          ip helper-address (multiple), ip igmp / ip pim sparse-mode.
+          Maps each block back into the `vlan_map` keyed by VLAN ID.
+        config_required: ""
+        notes: |
+          Note that `interface Vlan` matches "interface Vlan1" through
+          "interface Vlan4094" — the regex relies on the VLAN ID being
+          captured from the header line, not on a delimiter.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-native"
+        data_path: "/native/interface/Vlan"
+        firmware_required: ">=16.6.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-native:native/interface/Vlan"
+        firmware_required: ">=16.6.1"
+      gnmi:
+        path: "/Cisco-IOS-XE-native:native/interface/Vlan"
+        firmware_required: ">=17.3"
+
+  - type: STP_VLAN_LIST
+    description: "List of VLANs with spanning-tree enabled"
+    versions:
+      - applies_to: ">=12.0"
+        cli: "show spanning-tree vlan"
+        sample_output: |
+          VLAN0010
+            Spanning tree enabled protocol rstp
+            Root ID    Priority    32778
+                       Address     001b.5377.fbe1
+                       Cost        4
+                       Port        49 (GigabitEthernet1/0/49)
+                       Hello Time   2 sec  Max Age 20 sec  Forward Delay 15 sec
+
+            Bridge ID  Priority    32778  (priority 32768 sys-id-ext 10)
+                       Address     001b.5377.fbe1
+                       Hello Time   2 sec  Max Age 20 sec  Forward Delay 15 sec
+                       Aging Time  300 sec
+
+          Interface           Role Sts Cost      Prio.Nbr Type
+          ------------------- ---- --- --------- -------- --------------------------------
+          Gi1/0/1             Desg FWD 4         128.1    P2p Edge
+          Gi1/0/49            Root FWD 4         128.49   P2p
+        parser_notes: |
+          Header lines `^VLAN(\d+)$` reveal which VLANs participate.
+          NetCaster's parser collects the set of VLAN IDs that show
+          up in this output as the "STP-enabled" set, and compares it
+          against the venue's expected VLAN list to find STP-missing
+          VLANs.
+        config_required: ""
+        notes: |
+          By default STP runs on all defined VLANs (PVST+ / Rapid-PVST+).
+          A VLAN appears in this output only when there's at least one
+          access port carrying it OR a trunk allowing it — empty VLANs
+          are silent. NetCaster accounts for this when computing the
+          STP-coverage diff.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-spanning-tree-oper"
+        data_path: "/stp-details/stp-detail"
+        firmware_required: ">=16.9.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-spanning-tree-oper:stp-details"
+        firmware_required: ">=16.9.1"
+      gnmi:
+        path: "/Cisco-IOS-XE-spanning-tree-oper:stp-details"
+        firmware_required: ">=17.3"
+
+  - type: HARDWARE_IDENTITY
+    description: "Composite: chassis serial(s), base MAC, stack member serials"
+    versions:
+      - applies_to: ">=15.0"
+        cli: |
+          show inventory
+          show version
+        sample_output: |
+          # ── show inventory ──
+          NAME: "c93xx Stack", DESCR: "c93xx Stack"
+          PID: C9300-48UXM      , VID: P2B  , SN: FCW2117G00C
+
+          NAME: "Switch 1", DESCR: "C9300-48UXM"
+          PID: C9300-48UXM      , VID: P2B  , SN: FCW2117G00B
+
+          NAME: "Switch 2", DESCR: "C9300-48UXM"
+          PID: C9300-48UXM      , VID: P2B  , SN: FCW2117G00C
+
+          NAME: "Switch 1 - Power Supply A", DESCR: "Switch 1 - Power Supply A"
+          PID: PWR-C1-1100WAC   , VID: V02  , SN: LIT211227NZ
+
+          NAME: "Switch 1 FRU Uplink Module 1", DESCR: "8x10G Uplink Module"
+          PID: C3850-NM-8-10G   , VID: V01  , SN: FOC20153M58
+
+          # ── show version ──
+          Cisco IOS XE Software, Version 17.12.04
+          Cisco IOS Software [Dublin], Catalyst L3 Switch Software (CAT9K_IOSXE), Version 17.12.4
+
+          ROM: IOS-XE ROMMON
+          BOOTLDR: System Bootstrap, Version 17.12.1r [FC1], RELEASE SOFTWARE (P)
+
+          switch uptime is 21 weeks, 3 days, 4 hours, 12 minutes
+          Uptime for this control processor is 21 weeks, 3 days, 4 hours, 14 minutes
+          System returned to ROM by Power Failure
+          System restarted at 12:34:56 UTC Mon Jan 6 2025
+          System image file is "flash:packages.conf"
+
+          Technology Package License Information:
+          ...
+
+          Switch Ports Model              SW Version        SW Image              Mode
+          ------ ----- -----              ----------        --------              ----
+               1    52 C9300-48UXM        17.12.4           CAT9K_IOSXE           INSTALL
+               2    52 C9300-48UXM        17.12.4           CAT9K_IOSXE           INSTALL
+
+          Configuration register is 0x102
+
+          Base Ethernet MAC Address       : AA:BB:CC:00:01:00
+          Motherboard Assembly Number     : 73-18272-04
+          Motherboard Serial Number       : FCW2117G00B
+          Model Revision Number           : P2B
+          Motherboard Revision Number     : A0
+          Model Number                    : C9300-48UXM
+          System Serial Number            : FCW2117G00B
+        parser_notes: |
+          Composite operation. Handler's `get_hardware_identity`:
+
+          Step 1 — `show inventory`:
+            Split on `\n(?=NAME:)`. For each block, match
+            NAME: "..." — keep blocks where NAME contains
+            "Chassis", "Switch <n>", or "Stack".
+            Extract SN: <token>. Dedupe + sort. First entry =
+            primary serial; full list = stack_member_serials.
+
+          Step 2 — `show version` (fallback + base MAC):
+            If inventory yielded zero serials, fall back to
+            `Processor board ID` / `System serial number` lines.
+            ALWAYS extract base MAC from
+            `Base (?:ethernet )?MAC Address\s*[:\s]\s*(<mac>)`,
+            normalized to colon-separated lowercase.
+        config_required: ""
+        notes: |
+          IOS-XE 17.x emits "Base Ethernet MAC Address" with a colon
+          separator; some 16.x trains emit it as "Base Ethernet MAC
+          Address(es): AABB.CC00.0100" (Cisco-dotted, plural). The
+          existing handler regex covers both via `(?:[:\.-]...)`.
+          The `Processor board ID` field is the historical-IOS form;
+          IOS-XE prefers `System Serial Number`.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-device-hardware-oper"
+        data_path: "/device-hardware-data/device-hardware/device-system-data"
+        firmware_required: ">=16.8.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-device-hardware-oper:device-hardware-data"
+        firmware_required: ">=16.8.1"
+      gnmi:
+        path: "/Cisco-IOS-XE-device-hardware-oper:device-hardware-data"
+        firmware_required: ">=17.3"
+
+  - type: HOSTNAME
+    description: "The switch's configured hostname"
+    versions:
+      - applies_to: ">=12.0"
+        cli: "show running-config | include ^hostname"
+        sample_output: |
+          hostname switch-edge-12
+        parser_notes: |
+          Single-line match `^hostname\s+(\S+)`. Note the existing
+          handler reads hostname from the netmiko prompt instead
+          (`find_prompt()` → strip trailing `>` or `#`) — this is
+          faster and avoids a second show. Catalog records the
+          explicit-show alternative for completeness.
+        config_required: ""
+        notes: |
+          Hostname is also embedded in `show version` output:
+          `<hostname> uptime is ...`. Either source works; prompt
+          is the cheapest.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-native"
+        data_path: "/native/hostname"
+        firmware_required: ">=16.6.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-native:native/hostname"
+        firmware_required: ">=16.6.1"
+      gnmi:
+        path: "/Cisco-IOS-XE-native:native/hostname"
+        firmware_required: ">=17.3"
+
+  - type: VERSION
+    description: "Firmware version string — drives catalog version-aware selection"
+    versions:
+      - applies_to: ">=12.0"
+        cli: "show version"
+        sample_output: |
+          Cisco IOS XE Software, Version 17.12.04
+          Cisco IOS Software [Dublin], Catalyst L3 Switch Software (CAT9K_IOSXE), Version 17.12.4, RELEASE SOFTWARE (fc1)
+          Technical Support: http://www.cisco.com/techsupport
+          Copyright (c) 1986-2024 by Cisco Systems, Inc.
+          Compiled Thu 14-Mar-24 09:12 by mcpre
+        parser_notes: |
+          Two patterns to match (in order of preference):
+            1. IOS-XE: `Cisco IOS XE Software, Version (\S+)`
+               → captures e.g. "17.12.04"
+            2. IOS classic: `Cisco IOS Software, .*?Version (\S+),`
+               → captures e.g. "15.2(7)E5"
+          Strip any trailing comma. Normalize to dotted form
+          (the IOS-classic "15.2(7)E5" form needs a parser-specific
+          version comparator — capture as-is for now).
+
+          Also worth capturing from this output:
+            - Platform/family: e.g. "CAT9K_IOSXE", "C3850 Software"
+            - Train name: "Dublin", "Cupertino", "Bengaluru" etc.
+        config_required: ""
+        notes: |
+          CRITICAL for the catalog itself — every other command's
+          version-range matching depends on parsing this string
+          first. Keep parser conservative: if both patterns fail,
+          treat as "unknown" and fall back to the wildcard `*`
+          version block. The fingerprint also feeds platform
+          detection in `_fingerprint_via_show_version`.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-install-oper"
+        data_path: "/install-oper-data/install-location-information"
+        firmware_required: ">=16.10.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-install-oper:install-oper-data"
+        firmware_required: ">=16.10.1"
+      gnmi:
+        path: "/Cisco-IOS-XE-install-oper:install-oper-data"
+        firmware_required: ">=17.3"
+
+  # ── Write operations — port-level ──────────────────────────────
+  - type: PORT_SHUTDOWN
+    description: "Administratively disable an interface"
+    versions:
+      - applies_to: ">=12.0"
+        cli: |
+          interface {interface}
+          shutdown
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Sent in config mode (netmiko `send_config_set`).
+          Failure mode: the engine NEVER retries write operations;
+          if config-set raises, the operator sees the error and the
+          port stays in whatever state the device is in.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-native"
+        data_path: "/native/interface/{type}/{name}/shutdown"
+        firmware_required: ">=16.6.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-native:native/interface/{type}={name}/shutdown"
+        firmware_required: ">=16.6.1"
+      gnmi:
+        path: "/Cisco-IOS-XE-native:native/interface/{type}[name={name}]/shutdown"
+        firmware_required: ">=17.3"
+
+  - type: PORT_NO_SHUTDOWN
+    description: "Administratively enable an interface"
+    versions:
+      - applies_to: ">=12.0"
+        cli: |
+          interface {interface}
+          no shutdown
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Pair with PORT_SHUTDOWN to implement port-cycle
+          (shutdown → wait → no shutdown). NetCaster's port-cycle
+          flow waits ~3s between the two writes.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-native"
+        data_path: "/native/interface/{type}/{name}/shutdown"
+        firmware_required: ">=16.6.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-native:native/interface/{type}={name}/shutdown"
+        firmware_required: ">=16.6.1"
+      gnmi:
+        path: "/Cisco-IOS-XE-native:native/interface/{type}[name={name}]/shutdown"
+        firmware_required: ">=17.3"
+
+  - type: PORT_VLAN_ASSIGN
+    description: "Set the access VLAN of an interface (with edge-port hardening)"
+    versions:
+      - applies_to: ">=12.0"
+        cli: |
+          interface {interface}
+          switchport access vlan {vlan_id}
+          spanning-tree portfast
+          spanning-tree bpduguard enable
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          NetCaster's VLAN-assign always layers in portfast +
+          BPDU guard — these are edge-port-safe defaults, and the
+          composite is what the existing handler emits today
+          (see `get_vlan_assign_commands`).
+
+          The interface should already be in `switchport mode access`;
+          if it's not (e.g., default L3 on a router image), the
+          `switchport access vlan` line silently no-ops. NetCaster's
+          clean-port find filters non-access ports out before write,
+          so this is rarely a real issue, but worth noting.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-native"
+        data_path: "/native/interface/{type}/{name}/switchport/access/vlan/vlan"
+        firmware_required: ">=16.6.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-native:native/interface/{type}={name}/switchport-config/switchport/access/vlan"
+        firmware_required: ">=16.6.1"
+      gnmi:
+        path: "/Cisco-IOS-XE-native:native/interface/{type}[name={name}]/switchport/access/vlan/vlan"
+        firmware_required: ">=17.3"
+
+  - type: PORT_POE_OFF
+    description: "Disable PoE on an interface"
+    versions:
+      - applies_to: ">=12.2"
+        cli: |
+          interface {interface}
+          power inline never
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Cisco doc warning: when a Cisco powered device is
+          connected and you flip to `power inline never`, a
+          false link-up can put the port into err-disable.
+          NetCaster's PoE-cycle flow uses `power inline never`
+          → wait → `power inline auto`, which is the standard
+          PoE power-cycle pattern; if err-disable trips, the
+          subsequent `no shutdown` recovers it.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-native"
+        data_path: "/native/interface/{type}/{name}/power/inline"
+        firmware_required: ">=16.6.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-native:native/interface/{type}={name}/power/inline"
+        firmware_required: ">=16.6.1"
+      gnmi:
+        path: "/Cisco-IOS-XE-native:native/interface/{type}[name={name}]/power/inline"
+        firmware_required: ">=17.3"
+
+  - type: PORT_POE_ON
+    description: "Enable PoE on an interface (default-on)"
+    versions:
+      - applies_to: ">=12.2"
+        cli: |
+          interface {interface}
+          power inline auto
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          `auto` is the IOS default for PoE-capable ports — this
+          command is effectively idempotent unless the port was
+          previously set to `never`.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-native"
+        data_path: "/native/interface/{type}/{name}/power/inline"
+        firmware_required: ">=16.6.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-native:native/interface/{type}={name}/power/inline"
+        firmware_required: ">=16.6.1"
+      gnmi:
+        path: "/Cisco-IOS-XE-native:native/interface/{type}[name={name}]/power/inline"
+        firmware_required: ">=17.3"
+
+  - type: PORT_POLICY_PUSH
+    description: "Composite port-policy push: portfast + BPDU guard + storm-control + description"
+    versions:
+      - applies_to: ">=12.2"
+        cli: |
+          interface {interface}
+          spanning-tree portfast
+          spanning-tree bpduguard enable
+          storm-control broadcast level {storm_control_level}
+          storm-control multicast level {storm_control_level}
+          description {description}
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Each line is OPTIONAL — handler `get_port_config_commands`
+          accepts kwargs for `portfast`, `bpdu_guard`, `storm_control`,
+          `storm_control_level`, `description` and only emits the
+          lines for which the corresponding flag/value is truthy.
+
+          The `cli` block above shows the maximum-fanout form; in
+          practice a typical operator-approved push is just the
+          first three lines (portfast + bpduguard + level).
+
+          Storm-control level format on IOS-XE is a percent in
+          decimal form ("1.00" = 1.00% of port bandwidth). Some
+          older trains accept absolute pps with `level pps <n>` —
+          NetCaster only emits the percent form.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-native"
+        data_path: "/native/interface/{type}/{name}"
+        firmware_required: ">=16.6.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-native:native/interface/{type}={name}"
+        firmware_required: ">=16.6.1"
+      gnmi:
+        path: "/Cisco-IOS-XE-native:native/interface/{type}[name={name}]"
+        firmware_required: ">=17.3"
+
+  # ── Write operations — provisioning ────────────────────────────
+  - type: VLAN_CREATE
+    description: "Create a VLAN definition (vid + optional name)"
+    versions:
+      - applies_to: ">=12.0"
+        cli: |
+          vlan {vlan_id}
+           name {name}
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          The `name` line is OPTIONAL — handler omits it if the
+          caller doesn't supply a name. Names are restricted to
+          32 chars, no spaces (Cisco limit).
+
+          On IOS classic with VTP server mode, VLAN creation
+          propagates via VTP — NetCaster does NOT handle the VTP
+          implications and assumes VTP transparent mode (the
+          recommended posture for venue deployments).
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-native"
+        data_path: "/native/vlan/vlan-list"
+        firmware_required: ">=16.6.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-native:native/vlan/vlan-list={vlan_id}"
+        firmware_required: ">=16.6.1"
+      gnmi:
+        path: "/Cisco-IOS-XE-native:native/vlan/vlan-list[id={vlan_id}]"
+        firmware_required: ">=17.3"
+
+  - type: SVI_CREATE
+    description: "Create an SVI for a VLAN with optional IP / DHCP relay / IGMP / PIM"
+    versions:
+      - applies_to: ">=12.0"
+        cli: |
+          interface Vlan{vlan_id}
+           ip address {ip_address} {netmask}
+           ip helper-address {dhcp_server}
+           ip igmp join-group 224.0.0.0
+           ip pim sparse-mode
+           no shutdown
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Composite: every line after `interface VlanN` is OPTIONAL.
+          Handler `get_svi_create_commands` accepts:
+            - ip_address (CIDR string e.g. "10.1.30.1/24")
+            - gateway_ip / gateway_mac (recorded but unused by IOS;
+              kept in the API for cross-vendor symmetry — Aruba uses)
+            - dhcp_servers (list[str] — emits one helper-address line each)
+            - igmp / pim_sparse (booleans)
+          The IP-address conversion CIDR → "ip address X Y" is done
+          via `ipaddress.IPv4Interface`.
+
+          `no shutdown` is always emitted — SVIs default to admin-down.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-native"
+        data_path: "/native/interface/Vlan/{vlan_id}"
+        firmware_required: ">=16.6.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-native:native/interface/Vlan={vlan_id}"
+        firmware_required: ">=16.6.1"
+      gnmi:
+        path: "/Cisco-IOS-XE-native:native/interface/Vlan[name={vlan_id}]"
+        firmware_required: ">=17.3"
+
+  - type: STP_VLAN_ENABLE
+    description: "Enable spanning-tree for a VLAN"
+    versions:
+      - applies_to: ">=12.0"
+        cli: "spanning-tree vlan {vlan_id}"
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          By default STP IS enabled per VLAN on IOS — this command
+          only matters as the inverse of `no spanning-tree vlan N`,
+          which an operator may have disabled. Used by NetCaster's
+          STP-coverage remediation flow to re-enable STP on VLANs
+          the venue policy requires.
+
+          Mode (PVST+ vs Rapid-PVST+ vs MSTP) is set via separate
+          `spanning-tree mode <mode>` global config; NetCaster does
+          not touch the mode and only flips per-VLAN enable.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IOS-XE-spanning-tree"
+        data_path: "/native/spanning-tree/vlan"
+        firmware_required: ">=16.6.1"
+      restconf:
+        url_path: "/restconf/data/Cisco-IOS-XE-native:native/spanning-tree/vlan"
+        firmware_required: ">=16.6.1"
+      gnmi:
+        path: "/Cisco-IOS-XE-native:native/spanning-tree/vlan"
+        firmware_required: ">=17.3"
+
+  # ── Persistence ────────────────────────────────────────────────
+  - type: SAVE_CONFIG
+    description: "Copy running-config to startup-config"
+    versions:
+      - applies_to: ">=12.0"
+        cli: "write memory"
+        sample_output: |
+          Building configuration...
+          [OK]
+        parser_notes: |
+          Success indicator is the literal "[OK]" on a line by
+          itself. Failure shows an error string instead — netmiko
+          surfaces the raw output and NetCaster checks for "[OK]".
+        config_required: ""
+        notes: |
+          `write memory` and `copy running-config startup-config`
+          are interchangeable on all modern IOS / IOS-XE; the
+          existing handler ships `write memory` which is the
+          shortest reliable form. Some sandbox/CSR images emit
+          additional lines around the [OK]; the parser only
+          requires the marker, not exact match.
+
+          On stack masters, the save propagates to all members
+          automatically (no per-member action needed).
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-IA"
+        data_path: "/save-config (RPC)"
+        firmware_required: ">=16.6.1"
+      restconf:
+        url_path: "/restconf/operations/cisco-ia:save-config"
+        firmware_required: ">=16.6.1"
+      gnmi: null

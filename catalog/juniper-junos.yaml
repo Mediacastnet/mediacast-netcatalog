@@ -1,0 +1,1197 @@
+# ── Vendor identity ────────────────────────────────────────────────
+vendor: juniper_junos
+display_name: "Juniper Junos OS (EX / QFX)"
+manufacturer: "Juniper Networks"
+product_family: "EX Series / QFX Series switching"
+notes: |
+  Catalog covers Juniper EX Series and QFX Series switches running Junos OS.
+  MX Series routers are explicitly out of scope — they share Junos but the
+  switching command surface (ethernet-switching family, IRB, ELS) is what
+  NetCaster cares about.
+
+  Junos's CLI is fundamentally hierarchical and transactional, NOT imperative
+  like Cisco IOS / Aruba AOS-CX:
+
+    - Operational mode is `>` prompt; `show` commands run here.
+    - Configuration mode is `#` prompt (`configure` to enter, `exit` to leave).
+    - Config edits build a CANDIDATE config; nothing applies until `commit`.
+    - Most "writes" are `set <hierarchy> ...` or `delete <hierarchy> ...`
+      statements, not single-line action commands.
+    - There is no `running-config` vs `startup-config` distinction — `commit`
+      is the only persistence step. See SAVE_CONFIG entry.
+    - Pipe filters are richer: `| display set`, `| display xml`, `| match`,
+      `| count`, `| no-more`. NetCaster collectors should standardize on
+      `| no-more` (suppress pager) and `| display set` for config introspection.
+
+  ELS (Enhanced Layer 2 Software) vs non-ELS matters for VLAN / interface
+  config syntax. Modern EX (EX2300, EX3400, EX4100, EX4300, EX4400, EX4600,
+  EX9200) and all QFX run ELS. Legacy non-ELS EX (EX2200, EX3200, EX4200
+  on older Junos) used a different hierarchy. **This catalog targets ELS**;
+  non-ELS variants are flagged in `notes` where they materially differ.
+
+  Junos has FIRST-CLASS NETCONF support — it's the native programmatic
+  interface and is enabled by default on most platforms (just need to add
+  `set system services netconf ssh`). YANG models come in three flavors:
+    - Junos-native config models (`junos-conf-*`) — reflect the Junos
+      config hierarchy 1:1.
+    - Junos-native RPC models (`junos-rpc-*`) — wrap operational `show`
+      commands.
+    - OpenConfig models (`openconfig-*`) — vendor-neutral, mapped onto
+      the Junos config tree by an internal translator.
+
+  Junos OS Evolved (JOEv, on QFX5130/5220/5700, PTX, ACX) is a separate
+  but largely command-compatible variant. Treat as same surface for v1;
+  flag JOEv-only variations as they're discovered.
+
+  Interface naming: `ge-0/0/24` (1G), `xe-0/0/1` (10G), `et-0/0/0` (40/100G),
+  `mge-0/0/0` (multi-rate 1/2.5/5/10G), `ae0` (aggregated ethernet / LAG).
+  `unit 0` is the default logical sub-interface; family ethernet-switching
+  always lives on unit 0 for switch ports.
+
+# ── Documentation sources ──────────────────────────────────────────
+sources:
+  - title: "Junos OS CLI Reference: show arp"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-arp.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS CLI Reference: show ethernet-switching table (QFX/EX)"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-ethernet-switching-table-qfx-series.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS CLI Reference: show lldp neighbors"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-lldp-neighbors.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS CLI Reference: show lldp local-information"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-lldp-local-information-lldp-ex-series.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS CLI Reference: show lacp interfaces"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-lacp-interfaces.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS CLI Reference: show interfaces (Aggregated Ethernet)"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-interfaces-aggregated-ethernet.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS CLI Reference: show interfaces ge (EX Series)"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/interfaces-ethernet-switches/topics/ref/command/show-interfaces-ge-gigabit-ethernet-ex-series.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS CLI Reference: show interfaces extensive"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/interfaces-ethernet-switches/topics/ref/command/show-interfaces-extensive.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS CLI Reference: show interfaces terse"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-interfaces-terse.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS CLI Reference: show vlans (bridging, QFX)"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-vlans-bridging-qfx-series.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS CLI Reference: show interfaces vlan (EX)"
+    url: "https://www.juniper.net/documentation/en_US/junos/topics/reference/command-summary/show-interfaces-vlan-ex-series.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS CLI Reference: show spanning-tree interface"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-stp-interface-command.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS CLI Reference: show spanning-tree bridge"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-stp-bridge-command.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS CLI Reference: show chassis hardware"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-chassis-hardware.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS CLI Reference: show version"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-version.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS CLI Reference: show poe interface / controller"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/show-poe-interface.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS Ethernet Switching User Guide (ELS VLAN config)"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/multicast-l2/topics/topic-map/bridging-and-vlans.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS: Layer 2 Networking ELS configuration"
+    url: "https://www.juniper.net/documentation/en_US/junos/topics/task/configuration/bridging-vlans-ex-series-cli-els.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS: Routed VLAN Interfaces (IRB)"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/multicast-l2/topics/topic-map/routed-vlan-interfaces.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS: BPDU Protection for Spanning-Tree Protocols"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/stp-l2/topics/topic-map/spanning-tree-bpdu-protection.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS: Storm Control (ELS) Enable/Disable"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/security-services/topics/task/rate-limiting-storm-control-disabling-cli-els.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS: Enabling/Disabling PoE on EX Series Switches"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/poe/topics/task/poe-cli.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS: Configuring LLDP-MED civic-based location"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/statement/civic-based-lldp-med.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS: Commit the Configuration"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/cli/topics/topic-map/junos-configuration-commit.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS OpenConfig User Guide"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/open-config/topics/concept/openconfig-overview.html"
+    accessed: "2026-04-28"
+  - title: "Understanding Junos YANG Modules"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/netconf/topics/concept/yang-junos-modules-overview.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS: gNMI Subscription / Junos Telemetry Interface"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/interfaces-telemetry/topics/concept/subscribe-rpc.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS 24.4R1 Release Notes — JTI native MAC table sensors"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/release-notes/24.4/junos-release-notes-24.4r1/topics/new-features/feature-descriptions/junos-telemetry-interface-11.html"
+    accessed: "2026-04-28"
+  - title: "Junos OS: clear ethernet-switching table"
+    url: "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/command/clear-ethernet-switching-table-bridging-ex-series.html"
+    accessed: "2026-04-28"
+
+# ── Protocol capabilities ──────────────────────────────────────────
+protocol_capabilities:
+  netconf:
+    introduced_in: "any (native)"
+    notes: |
+      NETCONF over SSH is the native Junos programmatic interface. Enable
+      with `set system services netconf ssh` (default port 830). All
+      operational `show` commands and config edits map to NETCONF RPCs.
+      Junos-native YANG modules (`junos-conf-*`, `junos-rpc-*`) are
+      published per release on Juniper's download site and GitHub
+      (consolidated single-package distribution starting 23.4R1).
+  restconf:
+    introduced_in: "NOT_SUPPORTED"
+    notes: |
+      Junos OS does NOT expose a RESTCONF interface. The closest analogues
+      are (1) the legacy Junos REST API (`set system services rest`) which
+      is Juniper-proprietary and accepts XML/JSON-wrapped RPCs, not
+      RFC 8040 RESTCONF, and (2) gNMI/gNOI for ops + config. For RESTCONF-
+      shaped tooling expectations, treat as unavailable on Junos.
+  gnmi:
+    introduced_in: "19.2 (QFX5110/5120/5200/5210); broader EX/QFX coverage in 21.x+"
+    notes: |
+      gNMI is exposed via the Junos Telemetry Interface (JTI) over gRPC
+      (default port 32767 / 50051 depending on config). Enable with
+      `set system services extension-service request-response grpc`.
+      Supports STREAM (PERIODIC and ON_CHANGE), POLL, and ONCE subscription
+      modes. From 23.4R1, telemetry + config YANG models are merged in a
+      single distribution. 24.4R1 added native L2-learning MAC table and
+      MAC-IP table sensors on EX/QFX.
+
+# ── Commands ───────────────────────────────────────────────────────
+commands:
+  - type: ARP_TABLE
+    description: "Display the ARP table"
+    versions:
+      - applies_to: ">=9.0"
+        cli: "show arp no-resolve | no-more"
+        sample_output: |
+          MAC Address       Address         Name                      Interface           Flags
+          00:00:5e:00:53:01 10.0.0.1        10.0.0.1                  fxp1.0              none
+          00:00:5e:00:53:02 192.168.10.10   192.168.10.10             fxp0.0              none
+          aa:bb:cc:00:00:01 10.0.0.42       10.0.0.42                 ge-0/0/24.0         none
+        parser_notes: |
+          5-column space-separated when `no-resolve` is used (no DNS
+          resolution → "Name" column equals "Address" string). MAC is
+          colon-separated lowercase hex (xx:xx:xx:xx:xx:xx) — distinct
+          from Cisco's xxxx.xxxx.xxxx dotted form.
+          Flags values: none, permanent, published, gateway, remote.
+          Add `expiration-time` option to surface a TTE column if needed.
+          Skip the header line and any "Total entries: N" trailer.
+        config_required: ""
+        notes: |
+          Always pass `no-resolve` to skip reverse-DNS lookups (otherwise
+          Junos blocks per-row on DNS, which is slow and unpredictable
+          on isolated venue networks). `| no-more` suppresses the pager.
+          Starting 14.2, IRB interface names display Layer 2 identifiers
+          in brackets (e.g., `irb.10 [ge-0/0/1.0]`).
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-rpc-arp"
+        data_path: "<get-arp-table-information><no-resolve/></get-arp-table-information>"
+        firmware_required: ">=15.1"
+      restconf: null
+      gnmi:
+        path: "/network-instances/network-instance/protocols/protocol/static-routes"
+        firmware_required: ">=21.4"
+
+  - type: MAC_TABLE
+    description: "Display the MAC address table (forwarding / bridge table)"
+    versions:
+      - applies_to: ">=11.1"
+        cli: "show ethernet-switching table | no-more"
+        sample_output: |
+          MAC flags (S - static MAC, D - dynamic MAC, L - locally learned, P - Persistent static
+                     SE - statistics enabled, NM - non configured MAC, R - remote PE MAC, O - ovsdb MAC)
+
+          Ethernet switching table : 4 entries, 4 learned
+          Routing instance : default-switch
+              Vlan                MAC                 MAC         Logical                NH        RTR
+              name                address             flags       interface              Index     ID
+              v100                aa:bb:cc:00:00:01   D           ge-0/0/24.0            0         0
+              v100                aa:bb:cc:00:00:02   D           ge-0/0/25.0            0         0
+              v200                00:1c:73:00:00:99   D           ae0.0                  0         0
+              default             5c:5e:ab:00:00:11   D           ge-0/0/0.0             0         0
+        parser_notes: |
+          Header is multi-line (the MAC-flags legend + a count line + a
+          routing-instance line + the column header pair). Use a
+          regex/state-machine to find the data rows: VLAN name,
+          MAC (colon-separated), single-letter flag set, logical
+          interface (with `.unit` suffix). NH Index and RTR ID are
+          present on ELS hardware and may be 0 in switching-only mode.
+          Logical interface for a LAG appears as `aeN.M` not member ports.
+        config_required: ""
+        notes: |
+          ELS-only output (EX/QFX modern). Non-ELS legacy EX (EX2200/3200
+          on older Junos) used a simpler 5-column layout via the same
+          command — flag and adapt the parser if those platforms are
+          supported. For a per-VLAN scoping use
+          `show ethernet-switching table vlan-name <name>`.
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-rpc-l2-learning"
+        data_path: "<get-ethernet-switching-table-information/>"
+        firmware_required: ">=15.1"
+      restconf: null
+      gnmi:
+        path: "/network-instances/network-instance/fdb/mac-table/entries"
+        firmware_required: ">=24.4 (native MAC table sensor on EX/QFX per JTI 24.4R1)"
+
+  - type: NEIGHBOR_DETAIL
+    description: "LLDP neighbor detail (Junos's preferred discovery protocol — no CDP support on Junos switching)"
+    versions:
+      - applies_to: ">=9.0"
+        cli: "show lldp neighbors | no-more"
+        sample_output: |
+          Local Interface    Parent Interface    Chassis Id          Port info          System Name
+          ge-0/0/0.0         -                   10:0e:7e:a3:fb:a0   ge-0/0/47.0        dc-tme-ex4300-05
+          ge-0/0/2.0         -                   00:1f:12:38:7f:c0   ge-0/0/0           bng-l48p-dev
+          ge-0/0/24.0        ae0.0               aa:bb:cc:11:22:33   ge-1/0/24          stadium-core-01
+        parser_notes: |
+          5-column space-separated: Local Interface, Parent Interface,
+          Chassis Id (MAC), Port info (remote port id or description),
+          System Name. Parent Interface is `-` for normal ports, set
+          to the LAG (`aeN.M`) when the local port is a member of an
+          aggregated ethernet bundle. Pull the rest with
+          `show lldp neighbors interface <X>` for full TLVs.
+        config_required: |
+          set protocols lldp interface all
+        notes: |
+          Junos switching does NOT implement Cisco CDP — LLDP is the
+          only neighbor protocol. (Junos can RECEIVE CDP if `set
+          protocols cdp interface all` is configured on certain
+          platforms running JET/CDP-snooping firmware, but the standard
+          path is LLDP-only.) Default LLDP TX interval is 30s; convergence
+          on a freshly enabled neighbor takes 30-60s.
+
+          For per-interface deep detail:
+          `show lldp neighbors interface ge-0/0/24 | no-more`
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-rpc-lldp"
+        data_path: "<get-lldp-neighbors-information/>"
+        firmware_required: ">=11.4"
+      restconf: null
+      gnmi:
+        path: "/lldp/interfaces/interface/neighbors/neighbor/state"
+        firmware_required: ">=21.4"
+
+  - type: LLDP_DETAIL
+    description: "LLDP neighbor detail (per-interface verbose). On Junos this is the same protocol family as NEIGHBOR_DETAIL — exposed here for parity with the abstract command set."
+    versions:
+      - applies_to: ">=9.0"
+        cli: "show lldp neighbors interface {interface} | no-more"
+        sample_output: |
+          LLDP Neighbor Information:
+          Local Information:
+            Index: 12 Time to live: 120 Time mark: Wed Apr 23 14:21:08 2026 Age: 17 secs
+            Local Interface    : ge-0/0/24.0
+            Parent Interface   : -
+            Local Port ID      : 528
+            Ageout Count       : 0
+          Neighbour Information:
+            Chassis type       : Mac address
+            Chassis ID         : aa:bb:cc:11:22:33
+            Port type          : Locally assigned
+            Port ID            : 552
+            Port description   : ge-1/0/24
+            System name        : stadium-core-01
+            System Description : Juniper Networks, Inc. ex4300-48p Ethernet Switch, kernel JUNOS 22.4R3.25
+            System capabilities :
+                  Supported   : Bridge Router
+                  Enabled     : Bridge Router
+            Management Info :
+                Type                 : IPv4
+                Address              : 10.10.10.1
+                Port ID              : 33
+                Subtype              : 2
+                Interface Subtype    : ifIndex(2)
+                OID                  : 1.3.6.1.2.1.31.1.1.1.1.528
+        parser_notes: |
+          Block-structured output, NOT tabular. Parse as colon-separated
+          key/value pairs nested under section headers (Local Information,
+          Neighbour Information, System capabilities, Management Info).
+          System Description carries the remote model + Junos version —
+          useful for venue inventory.
+        config_required: |
+          set protocols lldp interface all
+        notes: |
+          Same protocol as NEIGHBOR_DETAIL — Junos doesn't have a CDP/LLDP
+          split like Cisco. Distinct entry preserved for catalog parity.
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-rpc-lldp"
+        data_path: "<get-lldp-interface-neighbors><interface-device>{interface}</interface-device></get-lldp-interface-neighbors>"
+        firmware_required: ">=11.4"
+      restconf: null
+      gnmi:
+        path: "/lldp/interfaces/interface[name={interface}]/neighbors/neighbor/state"
+        firmware_required: ">=21.4"
+
+  - type: PORT_CHANNEL_MEMBERS
+    description: "Map aggregated ethernet (AE / LAG) interfaces to physical member interfaces"
+    versions:
+      - applies_to: ">=10.0"
+        cli: "show lacp interfaces | no-more"
+        sample_output: |
+          Aggregated interface: ae0
+              LACP state:       Role   Exp   Def  Dist  Col  Syn  Aggr  Timeout  Activity
+                ge-0/0/0       Actor    No    No   Yes  Yes  Yes   Yes     Fast    Active
+                ge-0/0/0     Partner    No    No   Yes  Yes  Yes   Yes     Fast    Active
+                ge-0/0/1       Actor    No    No   Yes  Yes  Yes   Yes     Fast    Active
+                ge-0/0/1     Partner    No    No   Yes  Yes  Yes   Yes     Fast    Active
+              LACP protocol:        Receive State  Transmit State          Mux State
+                ge-0/0/0                  Current   Fast periodic Collecting distributing
+                ge-0/0/1                  Current   Fast periodic Collecting distributing
+        parser_notes: |
+          Block-structured, one block per `aeN`. Member interfaces appear
+          in the LACP-state and LACP-protocol sub-tables. The "Actor"
+          rows identify locally-configured members; "Partner" rows are
+          the remote side. NetCaster needs the Actor side to enumerate
+          local members. Sync field "Yes" + Mux State "Collecting
+          distributing" indicates a healthy member.
+
+          Alternative: `show interfaces ae0 detail | no-more` lists members
+          under "Logical interface ae0.0 ... Aggregate member links: ge-0/0/0,
+          ge-0/0/1" — more parser-friendly when LACP isn't running (static
+          aggregation).
+        config_required: |
+          # AE creation requires:
+          set chassis aggregated-devices ethernet device-count 8
+          set interfaces ae0 aggregated-ether-options lacp active
+          set interfaces ge-0/0/0 ether-options 802.3ad ae0
+        notes: |
+          Junos LAGs are called Aggregated Ethernet (AE), interface name
+          `aeN`. The `device-count` chassis-level statement reserves the
+          AE namespace and is mandatory before any `aeN` interface can be
+          created — a common gotcha. Static aggregation (no LACP) is
+          configured by omitting the `lacp` line and is invisible to
+          `show lacp interfaces`; fall back to `show interfaces aeN`.
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-rpc-lacp"
+        data_path: "<get-lacp-interface-information/>"
+        firmware_required: ">=15.1"
+      restconf: null
+      gnmi:
+        path: "/interfaces/interface[name=ae0]/aggregation/state"
+        firmware_required: ">=21.4"
+
+  - type: INTERFACE_CONFIG
+    description: "Show running config for a single interface"
+    versions:
+      - applies_to: ">=10.0"
+        cli: "show configuration interfaces {interface} | display set | no-more"
+        sample_output: |
+          set interfaces ge-0/0/24 description "AP-stadium-suite-101"
+          set interfaces ge-0/0/24 unit 0 family ethernet-switching interface-mode access
+          set interfaces ge-0/0/24 unit 0 family ethernet-switching vlan members v100
+          set interfaces ge-0/0/24 unit 0 family ethernet-switching storm-control default
+        parser_notes: |
+          With `| display set`, the hierarchical config is flattened to
+          one `set ...` line per leaf — easy to parse line-by-line as a
+          list of (path, value) tuples. Without `| display set`, the
+          output is a curly-brace block:
+              ge-0/0/24 {
+                  description "AP-stadium-suite-101";
+                  unit 0 {
+                      family ethernet-switching {
+                          interface-mode access;
+                          vlan {
+                              members v100;
+                          }
+                      }
+                  }
+              }
+          NetCaster collectors should standardize on `| display set` —
+          it's strictly easier to parse and matches how config gets
+          pushed back.
+        config_required: ""
+        notes: |
+          The interface placeholder is the physical name (`ge-0/0/24`),
+          NOT the unit form (`ge-0/0/24.0`). Unit numbers are config-tree
+          children of the physical interface.
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-conf-interfaces"
+        data_path: "<get-configuration><configuration><interfaces><interface><name>{interface}</name></interface></interfaces></configuration></get-configuration>"
+        firmware_required: ">=11.4"
+      restconf: null
+      gnmi:
+        path: "/interfaces/interface[name={interface}]/config"
+        firmware_required: ">=21.4"
+
+  - type: INTERFACE_CONFIG_BULK
+    description: "All-interface running-config in one shot"
+    versions:
+      - applies_to: ">=10.0"
+        cli: "show configuration interfaces | display set | no-more"
+        sample_output: |
+          set interfaces ge-0/0/0 unit 0 family ethernet-switching interface-mode trunk
+          set interfaces ge-0/0/0 unit 0 family ethernet-switching vlan members [ v100 v200 ]
+          set interfaces ge-0/0/24 description "AP-stadium-suite-101"
+          set interfaces ge-0/0/24 unit 0 family ethernet-switching interface-mode access
+          set interfaces ge-0/0/24 unit 0 family ethernet-switching vlan members v100
+          set interfaces ae0 aggregated-ether-options lacp active
+          set interfaces ae0 unit 0 family ethernet-switching interface-mode trunk
+          set interfaces ae0 unit 0 family ethernet-switching vlan members all
+        parser_notes: |
+          One `set` line per leaf. Group by the second whitespace-delimited
+          token (the physical interface name) to bucket per-port. Lists
+          appear as `[ a b c ]` bracketed and space-separated.
+        config_required: ""
+        notes: |
+          Significantly faster than per-interface lookups when scanning a
+          full chassis (e.g., 48-port EX4300). Same caveats as
+          INTERFACE_CONFIG re: `| display set` standardization.
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-conf-interfaces"
+        data_path: "<get-configuration><configuration><interfaces/></configuration></get-configuration>"
+        firmware_required: ">=11.4"
+      restconf: null
+      gnmi:
+        path: "/interfaces/interface/config"
+        firmware_required: ">=21.4"
+
+  - type: INTERFACE_STATS
+    description: "Show interface state, counters, and physical/operational status"
+    versions:
+      - applies_to: ">=10.0"
+        cli: "show interfaces {interface} extensive | no-more"
+        sample_output: |
+          Physical interface: ge-0/0/24, Enabled, Physical link is Up
+            Interface index: 528, SNMP ifIndex: 528, Generation: 134
+            Description: AP-stadium-suite-101
+            Link-level type: Ethernet, MTU: 1514, Speed: 1000mbps, Duplex: Full-Duplex,
+            BPDU Error: None, MAC-REWRITE Error: None, Loopback: Disabled,
+            Source filtering: Disabled, Flow control: Enabled, Auto-negotiation: Enabled,
+            Remote fault: Online, Media type: Copper
+            Device flags   : Present Running
+            Interface flags: SNMP-Traps Internal: 0x4000
+            Link flags     : None
+            CoS queues     : 8 supported, 8 maximum usable queues
+            Hold-times     : Up 0 ms, Down 0 ms
+            Current address: 5c:5e:ab:00:00:18, Hardware address: 5c:5e:ab:00:00:18
+            Last flapped   : 2026-04-23 09:45:12 UTC (4d 04:36 ago)
+            Statistics last cleared: Never
+            Traffic statistics:
+              Input  bytes  :        12384912312       8521 bps
+              Output bytes  :         9123482819       6014 bps
+              Input  packets:           48329841        12 pps
+              Output packets:           41203817         9 pps
+            Input errors:
+              Errors: 0, Drops: 0, Framing errors: 0, Runts: 0, Policed discards: 0,
+              L3 incompletes: 0, L2 channel errors: 0, L2 mismatch timeouts: 0,
+              FIFO errors: 0, Resource errors: 0
+            Output errors:
+              Carrier transitions: 2, Errors: 0, Drops: 0, Collisions: 0, Aged packets: 0,
+              FIFO errors: 0, HS link CRC errors: 0, MTU errors: 0, Resource errors: 0
+        parser_notes: |
+          Block-structured. Key fields NetCaster typically harvests:
+          Enabled/Disabled (admin), Physical link Up/Down (link), Speed,
+          Duplex, MAC, Description, Last flapped, Carrier transitions,
+          Input/Output errors. Indentation is significant; treat as
+          key:value pairs split on the first colon, with section
+          headers ("Traffic statistics:", "Input errors:", etc.) re-
+          rooting the namespace.
+
+          For terse status across all ports use:
+            show interfaces terse | no-more
+          which yields:
+            Interface       Admin Link Proto    Local                 Remote
+            ge-0/0/0        up    up
+            ge-0/0/0.0      up    up   eth-switch
+            ge-0/0/24       up    up
+            ge-0/0/24.0     up    up   eth-switch
+        config_required: ""
+        notes: |
+          `extensive` returns far more than NetCaster needs; consider
+          `show interfaces {interface} detail` if profiling shows
+          parsing cost. Both have stable column / key names across
+          Junos releases for the fields above.
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-rpc-interfaces"
+        data_path: "<get-interface-information><interface-name>{interface}</interface-name><extensive/></get-interface-information>"
+        firmware_required: ">=11.4"
+      restconf: null
+      gnmi:
+        path: "/interfaces/interface[name={interface}]/state"
+        firmware_required: ">=19.2"
+
+  - type: CIVIC_LOCATION
+    description: "Display LLDP-MED civic location definitions configured on the switch"
+    versions:
+      - applies_to: ">=12.1"
+        cli: "show configuration protocols lldp-med | display set | no-more"
+        sample_output: |
+          set protocols lldp-med interface all
+          set protocols lldp-med interface ge-0/0/24 location civic-based country-code US
+          set protocols lldp-med interface ge-0/0/24 location civic-based ca-type 3 ca-value "California"
+          set protocols lldp-med interface ge-0/0/24 location civic-based ca-type 6 ca-value "1313 Mockingbird Lane"
+          set protocols lldp-med interface ge-0/0/24 location civic-based ca-type 24 ca-value "94025"
+        parser_notes: |
+          Per-interface civic-based location fields are encoded as
+          (ca-type, ca-value) pairs. ca-type integers map to CA element
+          types per RFC 4776 / IEEE 802.1AB-2009: 1=A1 (national subdivision),
+          3=A3 (city), 6=A6 (street name), 24=postal/ZIP code, etc.
+          Junos accepts either the integer or the keyword (e.g.,
+          `ca-type county`).
+        config_required: |
+          set protocols lldp-med interface all
+        notes: |
+          Junos LLDP-MED civic location config lives at
+          `[edit protocols lldp-med interface ...]`, NOT under the
+          interface itself. This differs from Aruba AOS-CX where civic
+          location is a separate `civic-location` definition referenced
+          by interfaces. Capture the full set of ca-type assignments
+          per interface to round-trip the location.
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-conf-protocols (lldp-med subtree)"
+        data_path: "<get-configuration><configuration><protocols><lldp-med/></protocols></configuration></get-configuration>"
+        firmware_required: ">=15.1"
+      restconf: null
+      gnmi: null
+
+  - type: VLAN_LIST
+    description: "List all VLANs on the switch"
+    versions:
+      - applies_to: ">=12.3"
+        cli: "show vlans brief | no-more"
+        sample_output: |
+          Routing instance        VLAN name                 Tag         Interfaces
+          default-switch          default                   1           default-switch
+          default-switch          v100                      100         ge-0/0/0.0*
+                                                                        ge-0/0/24.0*
+                                                                        ge-0/0/25.0*
+          default-switch          v200                      200         ge-0/0/0.0
+                                                                        ae0.0
+          default-switch          mgmt                      999         ge-0/0/47.0*
+        parser_notes: |
+          4-column: Routing instance, VLAN name, Tag (VID), Interfaces.
+          The Interfaces column is multi-line — continuation lines have
+          empty values for the first three columns. Trailing `*` on an
+          interface name = untagged (access) member of that VLAN; no
+          asterisk = tagged (trunk) member. A VLAN with no interfaces
+          shows an empty Interfaces column.
+
+          A VLAN with an L3 IRB attachment surfaces as
+          `irb.N` in the Interfaces column.
+        config_required: ""
+        notes: |
+          Junos VLANs have BOTH a name AND a numeric tag. The name is
+          the canonical identifier in config (`set vlans v100 vlan-id
+          100`); the tag is the 802.1Q VID. NetCaster should key on
+          the tag for cross-vendor consistency but display the name
+          where the operator sees it.
+
+          For the count of MAC entries per VLAN add `extensive`.
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-rpc-l2-learning"
+        data_path: "<get-vlan-information><brief/></get-vlan-information>"
+        firmware_required: ">=15.1"
+      restconf: null
+      gnmi:
+        path: "/network-instances/network-instance[name=default-switch]/vlans/vlan"
+        firmware_required: ">=21.4"
+
+  - type: SVI_CONFIG
+    description: "Show config for SVIs / IRB (Integrated Routing and Bridging) interfaces — Junos's per-VLAN L3 sub-interfaces"
+    versions:
+      - applies_to: ">=11.0"
+        cli: "show configuration interfaces irb | display set | no-more"
+        sample_output: |
+          set interfaces irb unit 100 description "v100-svi"
+          set interfaces irb unit 100 family inet address 10.100.0.1/24
+          set interfaces irb unit 100 family inet6 address 2001:db8:100::1/64
+          set interfaces irb unit 200 description "v200-svi"
+          set interfaces irb unit 200 family inet address 10.200.0.1/24
+        parser_notes: |
+          Each SVI is an `irb.N` logical unit. The unit number is the
+          link to the bridge domain — by NetCaster convention it
+          typically equals the VLAN ID, but operators can pick any
+          unit number; cross-reference with `show configuration vlans
+          | display set | match l3-interface` to confirm the mapping.
+        config_required: ""
+        notes: |
+          Junos uses `irb` (Integrated Routing and Bridging) as the SVI
+          interface name on EX/QFX. Older non-ELS Junos and some MX
+          configurations used `vlan` (e.g., `vlan.10`); ELS standardized
+          on `irb`. The bridge-to-irb binding is in the VLAN definition
+          (`set vlans v100 l3-interface irb.100`), NOT under the
+          interface — this is the inverse of how Cisco IOS does it
+          (where the SVI declares its VLAN).
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-conf-interfaces"
+        data_path: "<get-configuration><configuration><interfaces><interface><name>irb</name></interface></interfaces></configuration></get-configuration>"
+        firmware_required: ">=11.4"
+      restconf: null
+      gnmi:
+        path: "/interfaces/interface[name=irb]/subinterfaces/subinterface"
+        firmware_required: ">=21.4"
+
+  - type: STP_VLAN_LIST
+    description: "Display the spanning-tree configuration / state per VLAN or instance"
+    versions:
+      - applies_to: ">=10.0"
+        cli: "show spanning-tree bridge | no-more"
+        sample_output: |
+          STP bridge parameters
+          Routing instance name         : GLOBAL
+          Context ID                    : 0
+          Enabled protocol              : RSTP
+            Root ID                     : 32768.5c:5e:ab:00:00:01
+            Hello time                  : 2 seconds
+            Maximum age                 : 20 seconds
+            Forward delay               : 15 seconds
+            Message age                 : 0
+            Number of topology changes  : 4
+            Time since last topology change: 1437 seconds
+            Local parameters
+              Bridge ID                 : 32768.5c:5e:ab:00:00:18
+              Extended system ID        : 0
+              Internal instance ID      : 0
+        parser_notes: |
+          Block-structured. For per-VLAN STP info on a switch running
+          VSTP, repeat with `show spanning-tree bridge vlan-id <N>`.
+          On RSTP/MSTP the bridge has one global instance (or N MSTI
+          instances); VSTP runs one instance per VLAN — Junos's closest
+          analog to Cisco PVST+.
+        config_required: |
+          # RSTP is the default; for per-VLAN STP enable VSTP:
+          set protocols vstp vlan all
+        notes: |
+          To enumerate VLANs participating in STP, parse
+          `show configuration protocols vstp | display set | no-more`
+          for `vlan-id` entries, OR for RSTP/MSTP (single-instance modes)
+          all configured VLANs participate by default. NetCaster's
+          STP_VLAN_LIST abstract should adapt accordingly.
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-rpc-stp"
+        data_path: "<get-spanning-tree-bridge-information/>"
+        firmware_required: ">=15.1"
+      restconf: null
+      gnmi: null
+
+  - type: HARDWARE_IDENTITY
+    description: "Stable hardware identity — chassis serial, model, base MAC, member serials in a Virtual Chassis stack"
+    versions:
+      - applies_to: ">=9.0"
+        cli: |
+          show chassis hardware | no-more
+          show virtual-chassis | no-more
+          show chassis mac-addresses | no-more
+        sample_output: |
+          # show chassis hardware
+          Hardware inventory:
+          Item             Version  Part number  Serial number     Description
+          Chassis                                BK0207662087      EX3200-48T
+          FPC 0            REV X3   750-021259   BK0207662087      EX3200-48T, 8 POE CPU
+            CPU            BUILTIN  BUILTIN                        FPC CPU
+            PIC 0          BUILTIN  BUILTIN                        48x 10/100/1000 Base-T
+            PIC 1          REV X1   711-021270   AR0206621426      4x GE SFP
+            Xcvr 0         REV 01   740-011782   P9904K1           SFP-SX
+          Power Supply 0   REV 01   740-020957   AT0506630218      PS 320W AC
+
+          # show virtual-chassis
+          Virtual Chassis ID: f8c0.01a3.de40
+          Virtual Chassis Mode: Enabled
+                                                  Mstr           Mixed Route Neighbor List
+          Member ID  Status   Serial No    Model       prio  Role      Mode  Mode ID  Interface
+          0 (FPC 0)  Prsnt    BK0207662087 ex4300-48p  129   Master*   N     VC      1  vcp-255/1/1
+                                                                                    2  vcp-255/1/0
+          1 (FPC 1)  Prsnt    BK0207662091 ex4300-48p  129   Backup    N     VC      0  vcp-255/1/0
+
+          # show chassis mac-addresses
+          FPC 0 MAC address information:
+            Public base address     5c:5e:ab:00:00:00
+            Public count            64
+        parser_notes: |
+          Composite — three separate ops commands needed:
+          - show chassis hardware: top-level "Chassis" row gives the
+            primary serial; FPC rows give per-card serials. For a
+            non-stack switch, "Chassis" is authoritative.
+          - show virtual-chassis: only meaningful on EX2300/EX3400/
+            EX4100/EX4300/EX4400/EX4600 stacks. Returns
+            "Virtual Chassis Mode: Disabled" or an error on
+            standalone QFX. Each Member row carries an FPC serial.
+          - show chassis mac-addresses: base MAC for the chassis (the
+            Public base address). NetCaster typically uses this as the
+            switch's stable identity.
+        config_required: ""
+        notes: |
+          Virtual Chassis (VC) is Junos's stacking technology, similar
+          to Cisco StackWise. On a standalone QFX5xxx the VC command
+          returns nothing useful — code defensively. For Junos OS Evolved
+          (QFX5130/5220/5700 etc.) a small subset of fields differ;
+          re-test against JOEv when those platforms are added.
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-rpc-chassis"
+        data_path: "<get-chassis-inventory/> + <get-virtual-chassis-information/> + <get-chassis-mac-addresses/>"
+        firmware_required: ">=11.4"
+      restconf: null
+      gnmi:
+        path: "/components/component/state"
+        firmware_required: ">=21.4"
+
+  - type: HOSTNAME
+    description: "The switch's configured hostname"
+    versions:
+      - applies_to: "*"
+        cli: "show configuration system host-name | display set | no-more"
+        sample_output: |
+          set system host-name stadium-edge-101
+        parser_notes: |
+          Single line. Strip the `set system host-name ` prefix; the
+          remainder is the hostname (may be quoted if it contains
+          special chars, but Junos disallows most).
+        config_required: ""
+        notes: |
+          The configured hostname is also reflected in the CLI prompt
+          (`<user>@<hostname>>`) — NetCaster's existing prompt-based
+          hostname extraction will work on Junos too. The dedicated
+          show command is more reliable when prompt parsing is fragile.
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-conf-system"
+        data_path: "<get-configuration><configuration><system><host-name/></system></configuration></get-configuration>"
+        firmware_required: ">=11.4"
+      restconf: null
+      gnmi:
+        path: "/system/state/hostname"
+        firmware_required: ">=21.4"
+
+  - type: VERSION
+    description: "Firmware version string. Critical for the catalog itself — drives version-aware command selection."
+    versions:
+      - applies_to: ">=9.0"
+        cli: "show version | no-more"
+        sample_output: |
+          Hostname: stadium-edge-101
+          Model: ex4300-48p
+          Junos: 22.4R3-S2.7
+          JUNOS OS Kernel 64-bit  [20240115.f8a7d2e_builder_stable_12-224]
+          JUNOS OS libs [20240115.f8a7d2e_builder_stable_12-224]
+          JUNOS OS runtime [20240115.f8a7d2e_builder_stable_12-224]
+          JUNOS OS time zone information [20240115.f8a7d2e_builder_stable_12-224]
+          JUNOS network stack and utilities [20240115.183849_builder_junos_224_r3_s2]
+          JUNOS modules [20240115.183849_builder_junos_224_r3_s2]
+          ...
+        parser_notes: |
+          Top of output has `Hostname:`, `Model:`, `Junos:` (or `JUNOS:`
+          on older releases) lines as colon-delimited key/value. The
+          `Junos:` line is the canonical version. Format is `MAJOR.MINOR
+          [R|S]<n>[-S<m>]` e.g. `22.4R3-S2.7`. NetCaster's version
+          matcher should treat this as `22.4.3` for SemVer purposes
+          (R = release, S = service release).
+
+          Starting Junos OS 24.4R1, output adds a `Family:` field
+          (junos / junos-es / junos-ex / junos-qfx / junos-evo) — useful
+          when distinguishing JOEv from classic Junos.
+          Starting 13.3, a `Junos:` summary line is guaranteed (older
+          releases had only the per-package list).
+        config_required: ""
+        notes: |
+          Junos OS Evolved (JOEv) emits `Junos: <ver>-EVO` — match the
+          `-EVO` suffix to detect.
+          Use this command to populate the version field before the
+          catalog's other entries are dispatched.
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-rpc-system"
+        data_path: "<get-software-information/>"
+        firmware_required: ">=11.4"
+      restconf: null
+      gnmi:
+        path: "/system/state/software-version"
+        firmware_required: ">=21.4"
+
+  - type: PORT_SHUTDOWN
+    description: "Administratively disable an interface"
+    versions:
+      - applies_to: ">=9.0"
+        cli: |
+          configure
+          set interfaces {interface} disable
+          commit and-quit
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Junos has no equivalent to Cisco's interface-mode `shutdown`
+          command — disabling is a config-tree statement that requires
+          entering configure mode and committing. Use `commit and-quit`
+          to apply and exit in one shot.
+
+          NetCaster's safe-write path must wrap this in a transaction
+          and verify `commit complete` in the output before declaring
+          success. A `commit confirmed 2` (auto-rollback after 2 min
+          unless re-committed) is a safer pattern for risky writes — see
+          tech-debt entry on commit-confirmed adoption.
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-conf-interfaces"
+        data_path: "<edit-config><target><candidate/></target><config><configuration><interfaces><interface><name>{interface}</name><disable/></interface></interfaces></configuration></config></edit-config>  followed by <commit/>"
+        firmware_required: ">=11.4"
+      restconf: null
+      gnmi:
+        path: "/interfaces/interface[name={interface}]/config/enabled (Set to false)"
+        firmware_required: ">=21.4"
+
+  - type: PORT_NO_SHUTDOWN
+    description: "Administratively enable an interface"
+    versions:
+      - applies_to: ">=9.0"
+        cli: |
+          configure
+          delete interfaces {interface} disable
+          commit and-quit
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Inverse of PORT_SHUTDOWN — `delete` removes the `disable`
+          statement from the candidate config, and commit applies. If
+          `disable` was not present, Junos returns
+          `warning: statement not found`; NetCaster should treat that
+          as success (the port is already enabled).
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-conf-interfaces"
+        data_path: "<edit-config> with operation=\"delete\" on the <disable/> leaf, then <commit/>"
+        firmware_required: ">=11.4"
+      restconf: null
+      gnmi:
+        path: "/interfaces/interface[name={interface}]/config/enabled (Set to true)"
+        firmware_required: ">=21.4"
+
+  - type: PORT_VLAN_ASSIGN
+    description: "Set the access VLAN of an interface"
+    versions:
+      - applies_to: ">=12.3"
+        cli: |
+          configure
+          set interfaces {interface} unit 0 family ethernet-switching interface-mode access
+          delete interfaces {interface} unit 0 family ethernet-switching vlan members
+          set interfaces {interface} unit 0 family ethernet-switching vlan members {vlan_id}
+          commit and-quit
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Junos has NO single equivalent of Cisco's `switchport access
+          vlan X`. The composite is:
+            1. Ensure interface-mode is access (no-op if already).
+            2. Delete any existing vlan members (replace, not append).
+            3. Set the new VLAN member.
+            4. Commit.
+
+          The {vlan_id} placeholder accepts EITHER the VLAN name (e.g.,
+          `v100`) OR the numeric VID. Junos prefers names; NetCaster
+          should resolve the VLAN ID to the configured VLAN name first
+          via `show vlans brief | match {vlan_id}` for cleanest config
+          on the device. Using a numeric VID directly works only if the
+          VLAN was created with `set vlans <name> vlan-id <id>` and the
+          numeric form is unambiguous.
+
+          On non-ELS legacy Junos the path was
+          `family ethernet-switching port-mode access vlan members ...`
+          — flag if those platforms are in scope.
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-conf-interfaces"
+        data_path: "<edit-config> on /configuration/interfaces/interface/unit/family/ethernet-switching/vlan/members"
+        firmware_required: ">=15.1"
+      restconf: null
+      gnmi:
+        path: "/interfaces/interface[name={interface}]/ethernet/switched-vlan/config/access-vlan"
+        firmware_required: ">=21.4"
+
+  - type: PORT_POE_OFF
+    description: "Disable PoE on an interface"
+    versions:
+      - applies_to: ">=10.0"
+        cli: |
+          configure
+          set poe interface {interface} disable
+          commit and-quit
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          PoE config lives at the top-level `[edit poe]` hierarchy in
+          Junos, NOT under the interface itself. The {interface}
+          placeholder uses the physical name without unit (`ge-0/0/24`,
+          not `ge-0/0/24.0`). The PoE config is retained under disable;
+          re-enable by deleting the disable statement.
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-conf-poe"
+        data_path: "<edit-config> on /configuration/poe/interface/disable"
+        firmware_required: ">=15.1"
+      restconf: null
+      gnmi: null
+
+  - type: PORT_POE_ON
+    description: "Enable PoE on an interface"
+    versions:
+      - applies_to: ">=10.0"
+        cli: |
+          configure
+          delete poe interface {interface} disable
+          commit and-quit
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Removes the `disable` leaf from the PoE interface config —
+          which restores PoE to its previously-configured (or default)
+          state. If the interface was never PoE-configured at all and
+          PoE-capable, the chassis-default behavior takes over (PoE on
+          by default with class-based detection on EX4300/EX4400).
+
+          A "PoE cycle" (off then on with a delay) is implemented as
+          two transactions; do not pack them in a single commit or the
+          PD never sees the power gap. Sleep ~3-5 seconds between
+          commits.
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-conf-poe"
+        data_path: "<edit-config> with operation=\"delete\" on /configuration/poe/interface/disable"
+        firmware_required: ">=15.1"
+      restconf: null
+      gnmi: null
+
+  - type: PORT_POLICY_PUSH
+    description: "Composite per-port policy: edge port (portfast equivalent), BPDU protection, storm control, description"
+    versions:
+      - applies_to: ">=12.3"
+        cli: |
+          configure
+          set interfaces {interface} description "{description}"
+          set interfaces {interface} unit 0 family ethernet-switching interface-mode access
+          set interfaces {interface} unit 0 family ethernet-switching storm-control default
+          set protocols rstp interface {interface} edge
+          set protocols rstp bpdu-block-on-edge
+          commit and-quit
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          This is the Junos analog of Cisco's `spanning-tree portfast +
+          bpduguard enable + storm-control + description` per-port
+          baseline — but the syntax is FUNDAMENTALLY different:
+
+            - "Portfast" → `set protocols rstp interface <X> edge`
+              (per-interface, under the STP protocol hierarchy, NOT the
+              interface itself).
+            - "BPDU guard" → `set protocols rstp bpdu-block-on-edge`
+              (this is GLOBAL — once set, ANY interface flagged as `edge`
+              gets BPDU protection. There is no per-port BPDU guard
+              shortcut on Junos prior to a separate
+              [edit protocols layer2-control bpdu-block] hierarchy.)
+            - "Storm control" → applied via a profile + binding in
+              modern Junos. `storm-control default` references the
+              chassis-default profile (broadcast/multicast/unknown-
+              unicast at default thresholds). Custom profiles are
+              defined under `[edit forwarding-options storm-control-
+              profiles]`.
+            - "Description" → on the physical interface, NOT a unit.
+
+          If using VSTP (per-VLAN STP) instead of RSTP, replace `rstp`
+          with `vstp` in the protocols stanza. Use a `commit confirmed
+          2` rollback safety net for this kind of composite write — see
+          tech-debt entry.
+
+          BPDU recovery: by default, an interface shut down by
+          bpdu-block-on-edge stays down until manual recovery (`clear
+          ethernet-switching recovery-timeout` or interface flap).
+          Configure `set protocols rstp bpdu-block-on-edge disable-
+          timeout <seconds>` for auto-recovery.
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-conf-interfaces + junos-conf-protocols + junos-conf-forwarding-options"
+        data_path: "Multiple: /configuration/interfaces, /configuration/protocols/rstp, /configuration/forwarding-options/storm-control-profiles"
+        firmware_required: ">=15.1"
+      restconf: null
+      gnmi: null
+
+  - type: VLAN_CREATE
+    description: "Create a VLAN definition (vid + optional name)"
+    versions:
+      - applies_to: ">=12.3"
+        cli: |
+          configure
+          set vlans {name} vlan-id {vlan_id}
+          commit and-quit
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Junos VLANs require a NAME — there's no anonymous-by-VID form.
+          Pick a stable name convention (e.g., `v{vlan_id}` or
+          `<purpose>-{vlan_id}`); NetCaster's smart-VLAN-suggestion
+          flow should default to `v{vlan_id}` if the operator hasn't
+          set a convention. Adding a description is optional:
+            set vlans {name} description "{description}"
+
+          Reserved VIDs: 0 and 4095 cannot be assigned. EX4100 has
+          additional reservations — re-check vendor docs if that
+          platform is in the deployment.
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-conf-vlans"
+        data_path: "<edit-config> on /configuration/vlans/vlan"
+        firmware_required: ">=15.1"
+      restconf: null
+      gnmi:
+        path: "/network-instances/network-instance[name=default-switch]/vlans/vlan[vlan-id={vlan_id}]/config"
+        firmware_required: ">=21.4"
+
+  - type: SVI_CREATE
+    description: "Create a Switch Virtual Interface (IRB) for a VLAN with optional IP"
+    versions:
+      - applies_to: ">=11.0"
+        cli: |
+          configure
+          set interfaces irb unit {vlan_id} description "{description}"
+          set interfaces irb unit {vlan_id} family inet address {cidr}
+          set vlans {name} l3-interface irb.{vlan_id}
+          commit and-quit
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Two separate config trees must be touched in one transaction:
+          (1) the IRB unit defines the L3 interface; (2) the VLAN
+          definition binds the IRB unit to that bridge domain. Junos
+          inverts Cisco's pattern (which puts the VLAN on the SVI).
+
+          Convention: NetCaster aligns IRB unit numbers with VLAN IDs
+          (`irb.100` ↔ vlan-id 100) for sanity. Junos doesn't enforce
+          this — operators can use any unit number — but mismatches
+          confuse audit dashboards.
+
+          For DHCP relay add:
+            set forwarding-options dhcp-relay server-group <name> {ip_address}
+            set forwarding-options dhcp-relay group <vlan-name> interface irb.{vlan_id}
+          For PIM/IGMP: separate `[edit protocols pim]` /
+          `[edit protocols igmp]` hierarchies — capture as a follow-on
+          composite if NetCaster's SVI flow surfaces those toggles.
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-conf-interfaces + junos-conf-vlans"
+        data_path: "Multiple: /configuration/interfaces/interface[name=irb] and /configuration/vlans/vlan/l3-interface"
+        firmware_required: ">=15.1"
+      restconf: null
+      gnmi:
+        path: "/interfaces/interface[name=irb]/subinterfaces/subinterface[index={vlan_id}]/config"
+        firmware_required: ">=21.4"
+
+  - type: STP_VLAN_ENABLE
+    description: "Enable spanning-tree for a VLAN"
+    versions:
+      - applies_to: ">=12.3"
+        cli: |
+          configure
+          set protocols vstp vlan {vlan_id}
+          commit and-quit
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          The applicable protocol depends on which STP variant the
+          switch is running:
+
+            - RSTP (default on EX/QFX): all VLANs participate in the
+              single instance automatically — there's no per-VLAN
+              enable. STP_VLAN_ENABLE is effectively a no-op; NetCaster
+              should detect RSTP and skip.
+            - VSTP (Junos's PVST+ analog, manually enabled): per-VLAN
+              activation is `set protocols vstp vlan <vid>`. To enable
+              for all VLANs in one shot:
+                `set protocols vstp vlan all`
+            - MSTP: VLANs are mapped to MSTI instances; there's no
+              per-VLAN enable, only per-MSTI configuration.
+
+          The {vlan_id} placeholder here accepts a VID, the VLAN name,
+          or `all`. Catalog consumers should branch on the active STP
+          mode (read via `show configuration protocols | display set |
+          match "set protocols (rstp|mstp|vstp)"`) before issuing this.
+    protocol_alternatives:
+      netconf:
+        yang_model: "junos-conf-protocols"
+        data_path: "<edit-config> on /configuration/protocols/vstp/vlan"
+        firmware_required: ">=15.1"
+      restconf: null
+      gnmi: null
+
+  - type: SAVE_CONFIG
+    description: "Persist the running configuration"
+    versions:
+      - applies_to: "*"
+        cli: "commit"
+        sample_output: |
+          configuration check succeeds
+          commit complete
+        parser_notes: |
+          Look for the literal string `commit complete` to confirm
+          success. Failure modes emit `error:` prefixed lines with the
+          relevant config-tree path, e.g.:
+            error: vlans v100 vlan-id: VLAN ID 4095 is reserved
+            error: configuration check-out failed
+        config_required: ""
+        notes: |
+          **Critical Junos distinction**: there is NO `write memory`,
+          `copy running-config startup-config`, or `save` analog. The
+          Junos config model is candidate/active:
+
+            - `set` / `delete` / `edit` modify the CANDIDATE config
+              (in memory).
+            - `commit` validates the candidate, applies it as the
+              ACTIVE config, AND persists it to disk
+              (`/config/juniper.conf.gz`) in one operation.
+            - There is no separate "save" step — `commit` is both
+              activate and save.
+
+          Consequences for NetCaster:
+            - SAVE_CONFIG is implicit in any write operation that
+              already includes a commit. Calling SAVE_CONFIG separately
+              after PORT_SHUTDOWN, etc., is a NO-OP.
+            - For risky composite writes, prefer `commit confirmed
+              <minutes>` — applies the config, but auto-rolls-back
+              after the timer unless a follow-up `commit` re-confirms.
+              This is the audit-grade pattern recommended in the
+              network-touching code review policy.
+            - To ROLLBACK manually: `rollback 0; commit` reverts to
+              the prior committed config (Junos keeps 50 historical
+              rollback files by default).
+
+          Implementer must NOT emit `write memory` / `copy run start`
+          on Junos — the device returns
+          `unknown command` / syntax error.
+    protocol_alternatives:
+      netconf:
+        yang_model: "ietf-netconf base RPC"
+        data_path: "<commit/> RPC (with optional <confirmed/><confirm-timeout>...) "
+        firmware_required: ">=11.4"
+      restconf: null
+      gnmi:
+        path: "gNMI Set RPC implicit commit; for confirmed-commit use the gNOI System.SetPackage / proprietary JET RPC"
+        firmware_required: ">=21.4"

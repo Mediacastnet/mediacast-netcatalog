@@ -1,0 +1,1178 @@
+# ── Vendor identity ────────────────────────────────────────────────
+vendor: cisco_nxos
+display_name: "Cisco NX-OS (Nexus)"
+manufacturer: "Cisco Systems"
+product_family: "Nexus 9000 / 7000 / 5000"
+notes: |
+  Single catalog covers Cisco Nexus data-center switches running NX-OS:
+  Nexus 9000 (9300/9500), Nexus 7000/7700, Nexus 5500/5600, Nexus 3000.
+  Treat NX-OS 9.3(x) as the baseline for NetCaster's existing handler;
+  10.x is the current shipping line. Per-command notes call out drift.
+
+  NX-OS deviates from IOS / IOS-XE in several places that matter for
+  parsers:
+    - Interface naming: `Ethernet1/24` (NX-OS) vs `GigabitEthernet1/0/24`
+      (IOS). Port-channels are lowercase `port-channel1`, not `Port-channel1`.
+    - PortFast equivalent is `spanning-tree port type edge`, not
+      `spanning-tree portfast`.
+    - `show mac address-table` includes a leading flag column
+      (`*`, `+`, `G`, `R`, `~`, `O`, `C`) and extra `age`/`Secure`/`NTFY`
+      columns absent on IOS.
+    - `show ip arp` has no "Internet"/"ARPA" type columns; age is
+      HH:MM:SS instead of minutes.
+    - `show etherchannel summary` (IOS) is `show port-channel summary`
+      on NX-OS.
+    - SVIs are `interface Vlan<n>` (same syntax form, but the SVI feature
+      requires `feature interface-vlan` first).
+    - DHCP relay is `ip dhcp relay address <ip>`, not
+      `ip helper-address <ip>` as on IOS.
+    - vPC: when a port-channel is a vPC member, write changes to its
+      member interfaces must be applied *symmetrically* on both vPC
+      peers, or the consistency checker will suspend the vPC. NetCaster
+      currently restricts writes to clean access ports — vPC member
+      interfaces are auto-excluded by the safe-path check, so no extra
+      vPC-specific commands are needed in this catalog. Reads
+      (`show port-channel summary`, `show vpc`) are unaffected.
+    - PoE: only specific Nexus 9300-FX/FX2/FX3 SKUs ship PoE-capable
+      ports. Most data-center Nexus models are not PoE-bearing. PoE
+      commands here apply where the platform supports it; on
+      non-PoE Nexus, the commands are accepted with no effect.
+    - NX-OS does NOT auto-save changes; an explicit
+      `copy running-config startup-config` is required for persistence.
+
+# ── Documentation sources ──────────────────────────────────────────
+sources:
+  - title: "Cisco Nexus 9000 Series NX-OS Command Reference (Show Commands), Release 10.4(x) — M Show Commands"
+    url: "https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/104x/command-reference/show/b_n9k_show_commands_104x/m_m_showcmds.html"
+    accessed: "2026-04-28"
+  - title: "Cisco Nexus 9000 Series NX-OS Command Reference (Show Commands), Release 9.3(x) — M Show Commands"
+    url: "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/command/reference/show/b_N9K_Show_Commands_93x/b_N9K_Show_Commands_93x_chapter_01100.html"
+    accessed: "2026-04-28"
+  - title: "Cisco Nexus 9000 Series NX-API CLI, Release 9.3(x) — MAC Address Commands"
+    url: "https://developer.cisco.com/docs/cisco-nexus-9000-series-nx-api-cli-reference/latest/mac-address-commands/"
+    accessed: "2026-04-28"
+  - title: "Cisco Nexus 9000 Series NX-API CLI, Release 9.3(x) — IP Commands"
+    url: "https://developer.cisco.com/docs/cisco-nexus-9000-series-nx-api-cli-reference/latest/ip-commands/"
+    accessed: "2026-04-28"
+  - title: "Cisco Nexus 9000 Series NX-API CLI, Release 9.3(x) — CDP Commands"
+    url: "https://developer.cisco.com/docs/cisco-nexus-9000-series-nx-api-cli-reference/latest/cdp-commands/"
+    accessed: "2026-04-28"
+  - title: "Cisco Nexus 9000 Series NX-API CLI, Release 9.3(x) — Port-Channel Commands"
+    url: "https://developer.cisco.com/docs/cisco-nexus-9000-series-nx-api-cli-reference/latest/port-channel-commands/"
+    accessed: "2026-04-28"
+  - title: "Cisco Nexus 9000 Series NX-API CLI Reference, Release 7(x) — Inventory Commands"
+    url: "https://developer.cisco.com/docs/nx-api-cli-reference-for-the-cisco-nexus-9000-series-platform/inventory-commands/"
+    accessed: "2026-04-28"
+  - title: "Cisco Nexus 9000 Series NX-OS Layer 2 Switching Configuration Guide — Configuring STP Extensions"
+    url: "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/7-x/layer2/configuration/guide/b_Cisco_Nexus_9000_Series_NX-OS_Layer_2_Switching_Configuration_Guide_7x/b_Cisco_Nexus_9000_Series_NX-OS_Layer_2_Switching_Configuration_Guide_7x_chapter_01001.html"
+    accessed: "2026-04-28"
+  - title: "Cisco Nexus 9000 Series NX-OS Security Configuration Guide, Release 10.4(x) — Configuring DHCP"
+    url: "https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/104x/configuration/security/cisco-nexus-9000-series-nx-os-security-configuration-guide-release-104x/m-configuring-dhcp.html"
+    accessed: "2026-04-28"
+  - title: "Cisco Nexus 9000 Series NX-OS Programmability Guide, Release 9.3(x) — NETCONF Agent"
+    url: "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/progammability/guide/b-cisco-nexus-9000-series-nx-os-programmability-guide-93x/b-cisco-nexus-9000-series-nx-os-programmability-guide-93x_chapter_0100110.html"
+    accessed: "2026-04-28"
+  - title: "Cisco Nexus 9000 Series NX-OS Programmability Guide, Release 9.3(x) — RESTConf Agent"
+    url: "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/progammability/guide/b-cisco-nexus-9000-series-nx-os-programmability-guide-93x/b-cisco-nexus-9000-series-nx-os-programmability-guide-93x_chapter_011100.html"
+    accessed: "2026-04-28"
+  - title: "Cisco Nexus 9000 Series NX-OS Programmability Guide, Release 9.3(x) — gNMI"
+    url: "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/93x/progammability/guide/b-cisco-nexus-9000-series-nx-os-programmability-guide-93x/b-cisco-nexus-9000-series-nx-os-programmability-guide-93x_chapter_0110001.html"
+    accessed: "2026-04-28"
+  - title: "Cisco Nexus 9000 Series NX-OS Programmability Guide, Release 10.5(x) — Original and OpenConfig YANG"
+    url: "https://www.cisco.com/c/en/us/td/docs/dcn/nx-os/nexus9000/105x/programmability/cisco-nexus-9000-series-nx-os-programmability-guide-105x/m-yang.html"
+    accessed: "2026-04-28"
+  - title: "YangModels/yang — vendor/cisco/nx/9.3-3 README"
+    url: "https://github.com/YangModels/yang/blob/main/vendor/cisco/nx/9.3-3/README.md"
+    accessed: "2026-04-28"
+  - title: "Configure and Verify gRPC/gNMI on Nexus 9000"
+    url: "https://www.cisco.com/c/en/us/support/docs/switches/nexus-9000-series-switches/220640-configure-and-verify-grpc-gnmi-on-nexus.html"
+    accessed: "2026-04-28"
+  - title: "Verify Nexus 9000 Series ARP and MAC Table Sync Behavior"
+    url: "https://www.cisco.com/c/en/us/support/docs/switches/nexus-9000-series-switches/213962-nexus-9000-arp-mac-table-sync-behavio.html"
+    accessed: "2026-04-28"
+  - title: "Understand and Configure Nexus 9000 vPC with Best Practices"
+    url: "https://www.cisco.com/c/en/us/support/docs/switches/nexus-9000-series-switches/218333-understand-and-configure-nexus-9000-vpc.html"
+    accessed: "2026-04-28"
+
+# ── Protocol capabilities ──────────────────────────────────────────
+protocol_capabilities:
+  netconf:
+    introduced_in: "9.2(1)"
+    notes: |
+      NETCONF agent shipped on Nexus 9000 in 9.2(1); notifications
+      added in 9.3(1). Enable with `feature netconf`. Cisco-NX-OS-device
+      native YANG model is included in the image since 7.0(3)I6(2).
+      OpenConfig models require a separate RPM installed from the Cisco
+      Artifactory.
+  restconf:
+    introduced_in: "9.2(1)"
+    notes: |
+      RESTCONF agent shipped on Nexus 9000 in 9.2(1). HTTPS-only on
+      most platforms. Enable with `feature restconf`. Uses the same
+      datastore model as NETCONF; YANG models drive paths.
+  gnmi:
+    introduced_in: "9.3(3)"
+    notes: |
+      gRPC agent shipped earlier (9.3(x)) but Cisco-formal gNMI
+      Capabilities/Get/Set/Subscribe became fully supported with
+      OpenConfig in 9.3(5); 9.3(3) added Subscribe/Capabilities
+      OpenConfig support. Configure under `grpc` config block; gNMI
+      runs over gRPC on user-configured TCP port (commonly 50051).
+      Each gNMI message capped at 12 MB.
+
+# ── Commands ───────────────────────────────────────────────────────
+commands:
+  - type: ARP_TABLE
+    description: "Display the ARP table"
+    versions:
+      - applies_to: ">=6.0"
+        cli: "show ip arp"
+        sample_output: |
+          IP ARP Table for context default
+          Total number of entries: 3
+          Address         Age       MAC Address     Interface
+          10.1.10.1       00:01:30  001a.2b3c.4d5e  Vlan10
+          10.1.10.42      00:05:15  aabb.ccdd.eeff  Vlan10
+          10.1.10.99      -         00de.fb12.3456  Ethernet1/24
+        parser_notes: |
+          4 columns: Address, Age, MAC Address, Interface.
+          Age is HH:MM:SS (or `-` for static / incomplete entries) — NOT
+          minutes as on IOS. No "Internet"/"ARPA" prefix columns.
+          Header lines ("IP ARP Table for context", "Total number of
+          entries") must be skipped before iterating rows. With `detail`
+          variant, a 5th column "Physical Interface" is appended.
+        config_required: ""
+        notes: |
+          For non-default VRFs, append `vrf <name>` (or `vrf all`).
+          On vPC pairs, both peers maintain ARP state; entries can show
+          the vPC peer-link as the interface for sync'd entries.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-NX-OS-device"
+        data_path: "/System/arp-items"
+        firmware_required: ">=9.2(1)"
+      restconf:
+        url_path: "/restconf/data/Cisco-NX-OS-device:System/arp-items"
+        firmware_required: ">=9.2(1)"
+      gnmi:
+        path: "/System/arp-items"
+        firmware_required: ">=9.3(5)"
+
+  - type: MAC_TABLE
+    description: "Display the MAC address table"
+    versions:
+      - applies_to: ">=6.0"
+        cli: "show mac address-table"
+        sample_output: |
+          Legend:
+                  * - primary entry, G - Gateway MAC, (R) - Routed MAC, O - Overlay MAC
+                  age - seconds since last seen,+ - primary entry using vPC Peer-Link,
+                  (T) - True, (F) - False, C - ControlPlane MAC, ~ - vsan
+             VLAN     MAC Address      Type      age     Secure NTFY Ports
+          ---------+-----------------+--------+---------+------+----+------------------
+          *   10     0000.0c9f.f00a   dynamic  0         F      F    Ethernet1/1
+          +   20     001a.2b3c.4d5e   dynamic  0         F      F    port-channel50
+          G    -     001a.2b3c.0001   static   -         F      F    sup-eth1(R)
+        parser_notes: |
+          7 columns plus a leading single-character flag:
+            flag, VLAN, MAC, Type, age, Secure, NTFY, Ports.
+          Leading flags: `*` primary, `+` primary via vPC peer-link,
+          `G` gateway MAC, `O` overlay (VXLAN), `C` control-plane,
+          `~` vsan. `(R)` after a port name means the entry is for a
+          routed/internal interface (e.g. `sup-eth1(R)`).
+          VLAN field is `-` for non-VLAN entries (gateway, sup-eth) —
+          require numeric VLAN to filter for real learned MACs.
+          MAC is Cisco dotted (xxxx.xxxx.xxxx). Ports column may
+          contain `Ethernet1/1`, `Eth1/1`, `port-channel50`, `Po50`,
+          or `Vlan<n>` (for routed MACs).
+          Skip `sup-eth*` and any `(R)` entries — these are switch
+          internals, not access-port-learned MACs.
+        config_required: ""
+        notes: |
+          NX-OS supports filtering: `vlan <id>`, `interface <X>`,
+          `address <mac>`, `static`, `dynamic`. Same column layout
+          across filters. On vPC pairs, `+`-flagged entries are
+          synced from the peer.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-NX-OS-device"
+        data_path: "/System/l2fwd-items"
+        firmware_required: ">=9.2(1)"
+      restconf:
+        url_path: "/restconf/data/Cisco-NX-OS-device:System/l2fwd-items"
+        firmware_required: ">=9.2(1)"
+      gnmi: null
+
+  - type: NEIGHBOR_DETAIL
+    description: "Display CDP neighbors with full detail (Cisco's preferred neighbor protocol)"
+    versions:
+      - applies_to: ">=6.0"
+        cli: "show cdp neighbors detail"
+        sample_output: |
+          ----------------------------------------
+          Device ID:SW-EDGE-01.example.local
+          System Name: SW-EDGE-01
+          Interface address(es):
+              IPv4 Address: 10.1.1.42
+          Platform: cisco N9K-C93180YC-FX, Capabilities: Router Switch IGMP Filter
+          Interface: Ethernet1/49, Port ID (outgoing port): Ethernet1/1
+          Holdtime: 175 sec
+
+          Version:
+          Cisco Nexus Operating System (NX-OS) Software, Version 10.3(2)
+          ...
+          Native VLAN: 1
+          Duplex: full
+          MTU: 1500
+          ----------------------------------------
+        parser_notes: |
+          Blocks separated by lines of dashes (>= 10 dashes is the
+          existing convention). Per block, regexes:
+            Device ID:\s*(\S+)
+            (?:IP address|IPv4 Address|Management address\(es\))\s*:\s*(\d+\.\d+\.\d+\.\d+)
+            Platform:\s*(.+?)(?:,|\n)
+            Interface:\s*(\S+)        — local interface (strip trailing comma)
+            Port ID \(outgoing port\):\s*(\S+) — remote interface
+            Capabilities:\s*(.+?)$
+          The `Interface:` line in NX-OS commonly contains a trailing
+          comma (`Interface: Ethernet1/49,  Port ID...`); strip it as
+          IOS does. Device ID may be FQDN — split on '.' and take
+          the first component for hostname.
+        config_required: |
+          cdp enable          (interface-level)
+          feature cdp         (NX-OS requires the cdp feature on; on
+                               most images it's enabled by default)
+        notes: |
+          Same field layout as IOS CDP. Some lab/older Nexus images
+          report Interface address(es) on a separate line; the multi-
+          format IP regex used by NetCaster's existing parser handles
+          both shapes.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-NX-OS-device"
+        data_path: "/System/cdp-items"
+        firmware_required: ">=9.2(1)"
+      restconf:
+        url_path: "/restconf/data/Cisco-NX-OS-device:System/cdp-items"
+        firmware_required: ">=9.2(1)"
+      gnmi: null
+
+  - type: LLDP_DETAIL
+    description: "Display LLDP neighbors with full detail (used as a secondary to CDP)"
+    versions:
+      - applies_to: ">=6.0"
+        cli: "show lldp neighbors detail"
+        sample_output: |
+          Capability codes:
+            (R) Router, (B) Bridge, (T) Telephone, (C) DOCSIS Cable Device
+            (W) WLAN Access Point, (P) Repeater, (S) Station, (O) Other
+          ----------------------------------------
+          Chassis id: 001a.2b3c.4d5e
+          Port id: Ethernet1/1
+          Local Port id: Ethernet1/49
+          Port Description: Uplink to access switch
+          System Name: SW-ACCESS-22
+          System Description: Cisco Nexus Operating System (NX-OS) Software 10.3(2)
+          Time remaining: 117 seconds
+          System Capabilities: B, R
+          Enabled Capabilities: B, R
+          Management Address: 10.1.1.22
+          Vlan ID: 1
+          ----------------------------------------
+        parser_notes: |
+          Same block-of-dashes split as CDP. Field labels differ:
+            System Name:\s*(\S+)
+            (?:Management Address|IP):\s*(\d+\.\d+\.\d+\.\d+)
+            Local Port id:\s*(\S+)        — local interface (NX-OS uses
+                                             "Local Port id", not "Local Intf"
+                                             that IOS/IOS-XE uses; parser
+                                             must accept both)
+            Port id:\s*(\S+)              — remote interface
+            System Description:\s*(.+?)(?:\n\n|\Z)
+        config_required: |
+          feature lldp        (must be enabled; NOT default on)
+          (no per-interface command needed once feature is enabled)
+        notes: |
+          NX-OS uses "Local Port id" rather than IOS's "Local Intf:"
+          label. NetCaster's current `parse_lldp_neighbors` uses
+          `Local Intf:` — would need an alternation to also match
+          `Local Port id:` for full NX-OS coverage.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-NX-OS-device"
+        data_path: "/System/lldp-items"
+        firmware_required: ">=9.2(1)"
+      restconf:
+        url_path: "/restconf/data/Cisco-NX-OS-device:System/lldp-items"
+        firmware_required: ">=9.2(1)"
+      gnmi:
+        path: "/openconfig-lldp:lldp/interfaces/interface"
+        firmware_required: ">=9.3(5)"
+
+  - type: PORT_CHANNEL_MEMBERS
+    description: "Map port-channel logical interfaces to physical member interfaces"
+    versions:
+      - applies_to: ">=6.0"
+        cli: "show port-channel summary"
+        sample_output: |
+          Flags:  D - Down        P - Up in port-channel (members)
+                  I - Individual  H - Hot-standby (LACP only)
+                  s - Suspended   r - Module-removed
+                  b - BFD Session Wait
+                  S - Switched    R - Routed
+                  U - Up (port-channel)
+                  p - Up in delay-lacp mode (member)
+                  M - Not in use. Min-links not met
+          --------------------------------------------------------------------------------
+          Group Port-       Type     Protocol  Member Ports
+                Channel
+          --------------------------------------------------------------------------------
+          1     Po1(SU)     Eth      LACP      Eth1/49(P)   Eth1/50(P)
+          2     Po2(SU)     Eth      LACP      Eth1/51(P)   Eth1/52(P)
+          50    Po50(SU)    Eth      LACP      Eth1/1(P)    Eth1/2(P)
+                                               Eth1/3(P)    Eth1/4(P)
+        parser_notes: |
+          Header line columns: Group, Port-Channel(flags), Type, Protocol,
+          Member Ports. Member-port flags: `(P)` bundled / up,
+          `(s)` suspended, `(D)` down, `(I)` individual, `(H)` hot-
+          standby, `(r)` module-removed.
+          Members may wrap onto continuation lines that are indented
+          and have no group number — accumulate them under the
+          previously-matched port-channel.
+          NX-OS abbreviations: `Eth1/1` → `Ethernet1/1`,
+          `Po1` → `port-channel1` (lowercase 'p').
+          NetCaster's existing `parse_port_channel_members` already
+          handles all of this correctly.
+        config_required: ""
+        notes: |
+          IOS uses `show etherchannel summary`; NX-OS does NOT have
+          that command. The format looks superficially similar but has
+          an extra "Type" column on NX-OS. When the port-channel is a
+          vPC member, `show vpc` cross-references it by vpc-id; this
+          catalog does not enumerate vPC pairs separately because
+          NetCaster's safe-write policy excludes port-channel
+          interfaces from writes anyway.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-NX-OS-device"
+        data_path: "/System/intf-items/aggr-items"
+        firmware_required: ">=9.2(1)"
+      restconf:
+        url_path: "/restconf/data/Cisco-NX-OS-device:System/intf-items/aggr-items"
+        firmware_required: ">=9.2(1)"
+      gnmi:
+        path: "/openconfig-interfaces:interfaces/interface[name=Port-Channel*]/openconfig-if-aggregate:aggregation"
+        firmware_required: ">=9.3(5)"
+
+  - type: INTERFACE_CONFIG
+    description: "Display running-config for a single interface"
+    versions:
+      - applies_to: ">=6.0"
+        cli: "show running-config interface {interface}"
+        sample_output: |
+          !Command: show running-config interface Ethernet1/24
+          !Running configuration last done at: Tue Apr 28 09:15:42 2026
+          !Time: Tue Apr 28 09:18:11 2026
+
+          version 10.3(2) Bios:version 05.47
+
+          interface Ethernet1/24
+            description Drop-101 access
+            switchport
+            switchport access vlan 110
+            spanning-tree port type edge
+            spanning-tree bpduguard enable
+            no shutdown
+        parser_notes: |
+          Header banner lines start with `!Command:`, `!Running
+          configuration...`, `!Time:`, `version ...`. Skip everything
+          until the first `interface <name>` line.
+          NX-OS uses `spanning-tree port type edge`, NOT `spanning-tree
+          portfast`. NetCaster's existing `parse_interface_configs`
+          on cisco_nxos.py accounts for this.
+        config_required: ""
+        notes: |
+          `{interface}` accepts NX-OS abbreviations
+          (`Eth1/24`, `Po50`) or full forms.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-NX-OS-device"
+        data_path: "/System/intf-items/phys-items/PhysIf-list[id={interface}]"
+        firmware_required: ">=9.2(1)"
+      restconf:
+        url_path: "/restconf/data/Cisco-NX-OS-device:System/intf-items/phys-items/PhysIf-list={interface}"
+        firmware_required: ">=9.2(1)"
+      gnmi:
+        path: "/openconfig-interfaces:interfaces/interface[name={interface}]"
+        firmware_required: ">=9.3(5)"
+
+  - type: INTERFACE_CONFIG_BULK
+    description: "Display running-config for all interfaces in one shot"
+    versions:
+      - applies_to: ">=6.0"
+        cli: "show running-config | section ^interface"
+        sample_output: |
+          interface mgmt0
+            vrf member management
+            ip address 10.0.0.10/24
+
+          interface Ethernet1/1
+            description Uplink
+            switchport mode trunk
+            no shutdown
+
+          interface Ethernet1/24
+            description Drop-101 access
+            switchport access vlan 110
+            spanning-tree port type edge
+            spanning-tree bpduguard enable
+            no shutdown
+        parser_notes: |
+          Split blocks on `(?=^interface\s)` (multiline). Same per-
+          block extraction as INTERFACE_CONFIG. The `| section`
+          filter on NX-OS is a regex (anchor with `^` for "starts
+          with").
+        config_required: ""
+        notes: |
+          NX-OS supports `| section <regex>` since 6.x. Output
+          includes `interface mgmt0`, `interface loopbackN`, and
+          `interface VlanN` blocks alongside Ethernet — same as
+          IOS but with NX-OS naming.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-NX-OS-device"
+        data_path: "/System/intf-items"
+        firmware_required: ">=9.2(1)"
+      restconf:
+        url_path: "/restconf/data/Cisco-NX-OS-device:System/intf-items"
+        firmware_required: ">=9.2(1)"
+      gnmi:
+        path: "/openconfig-interfaces:interfaces"
+        firmware_required: ">=9.3(5)"
+
+  - type: INTERFACE_STATS
+    description: "Display detailed interface counters and state"
+    versions:
+      - applies_to: ">=6.0"
+        cli: "show interface {interface}"
+        sample_output: |
+          Ethernet1/24 is up
+          admin state is up, Dedicated Interface
+            Hardware: 100/1000/10000 Ethernet, address: 00de.fb12.3456 (bia 00de.fb12.3456)
+            Description: Drop-101 access
+            MTU 1500 bytes,  BW 1000000 Kbit, DLY 10 usec
+            reliability 255/255, txload 1/255, rxload 1/255
+            Encapsulation ARPA, medium is broadcast
+            Port mode is access
+            full-duplex, 1000 Mb/s, media type is 1G
+            Beacon is turned off
+            Auto-Negotiation is turned on, FEC mode is Auto
+            Input flow-control is off, output flow-control is off
+            Auto-mdix is turned off
+            Switchport monitor is off
+            EtherType is 0x8100
+            EEE (efficient-ethernet) : n/a
+              admin fec state is auto, oper fec state is off
+            Last link flapped 1week(s) 2day(s)
+            Last clearing of "show interface" counters never
+            1 interface resets
+            Load-Interval #1: 30 seconds
+              30 seconds input rate 1024 bits/sec, 1 packets/sec
+              30 seconds output rate 512 bits/sec, 0 packets/sec
+              input rate 1.02 Kbps, 1 pps; output rate 512 bps, 0 pps
+            Load-Interval #2: 5 minute (300 seconds)
+              300 seconds input rate 800 bits/sec, 1 packets/sec
+              300 seconds output rate 600 bits/sec, 0 packets/sec
+              input rate 800 bps, 1 pps; output rate 600 bps, 0 pps
+            RX
+              123456 unicast packets  42 multicast packets  0 broadcast packets
+              123498 input packets  9876543 bytes
+              0 jumbo packets  0 storm suppression bytes
+              0 runts  0 giants  0 CRC  0 no buffer
+              0 input error  0 short frame  0 overrun  0 underrun  0 ignored
+              0 watchdog  0 bad etype drop  0 bad proto drop  0 if down drop
+              0 input with dribble  0 input discard
+              0 Rx pause
+            TX
+              98765 unicast packets  10 multicast packets  0 broadcast packets
+              98775 output packets  4567890 bytes
+              0 jumbo packets
+              0 output error  0 collision  0 deferred  0 late collision
+              0 lost carrier  0 no carrier  0 babble  0 output discard
+              0 Tx pause
+            1 interface resets
+        parser_notes: |
+          Status line: `<interface> is <state>` then `admin state is
+          <state>` on the next line — DIFFERENT from IOS/IOS-XE which
+          formats it as `<interface> is <state>, line protocol is
+          <state>` on a single line. NetCaster's existing
+          `parse_interface_stats` (inherited from CiscoIOSPlatform)
+          will only catch state on Nexus if the regex is broadened
+          OR a Nexus-specific override is added — current code may
+          miss some fields on NX-OS.
+          Rate lines on NX-OS are formatted "30 seconds input rate"
+          (note plural "seconds" and no comma) and "300 seconds
+          input rate" for 5-minute. IOS uses "30 second input rate"
+          (singular). Parser should handle both.
+          Counter lines are split into RX/TX blocks; CRC, runts,
+          giants, input errors, output errors all extractable with
+          existing patterns.
+        config_required: ""
+        notes: |
+          NX-OS interface description appears as `Description: <text>`
+          (capital D), same as IOS-XE. Hardware MAC is in xxxx.xxxx.xxxx
+          form.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-NX-OS-device"
+        data_path: "/System/intf-items/phys-items/PhysIf-list[id={interface}]/phys-items"
+        firmware_required: ">=9.2(1)"
+      restconf:
+        url_path: "/restconf/data/Cisco-NX-OS-device:System/intf-items/phys-items/PhysIf-list={interface}/phys-items"
+        firmware_required: ">=9.2(1)"
+      gnmi:
+        path: "/openconfig-interfaces:interfaces/interface[name={interface}]/state/counters"
+        firmware_required: ">=9.3(5)"
+
+  - type: CIVIC_LOCATION
+    description: "Display LLDP-MED civic location definitions from running-config"
+    versions:
+      - applies_to: ">=7.0"
+        cli: "show running-config | section ^location"
+        sample_output: |
+          location civic-location identifier 1
+            name "Drop-101"
+            building "Main"
+            floor "2"
+            additional-location-information "Press Box"
+        parser_notes: |
+          Block structure is identical to IOS:
+            location civic-location identifier <id>
+              name "<text>"
+              building "<text>"
+              floor "<text>"
+              room "<text>"
+              additional-location-information "<text>"
+          Split on `(?=^location civic-location identifier\s)`,
+          extract the `name` field first, fall back to building/floor/
+          room concatenation. NetCaster's NX-OS handler delegates to
+          the IOS implementation.
+        config_required: |
+          feature lldp
+          (LLDP-MED civic location is part of the LLDP feature; the
+          `location civic-location` config block does not require a
+          separate feature flag on Nexus.)
+        notes: |
+          On most data-center Nexus deployments, civic-location is
+          rarely configured — Nexus typically isn't an access-edge
+          phone-aggregation switch. Output may be empty in those
+          environments; parser should handle empty input gracefully.
+          Per-interface attachment uses
+          `location civic-location-id <id>` inside the interface
+          stanza, same as IOS.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: VLAN_LIST
+    description: "List all VLANs on the switch"
+    versions:
+      - applies_to: ">=6.0"
+        cli: "show vlan brief"
+        sample_output: |
+          VLAN Name                             Status    Ports
+          ---- -------------------------------- --------- -------------------------------
+          1    default                          active    Eth1/1, Eth1/2, Eth1/3, Eth1/4
+          10   DATA                             active    Eth1/5, Eth1/6
+          20   VOICE                            active    Eth1/7
+          110  GUEST                            active
+          1002 fddi-default                     act/unsup
+          1003 token-ring-default               act/unsup
+          1004 fddinet-default                  act/unsup
+          1005 trnet-default                    act/unsup
+        parser_notes: |
+          4-column layout identical to IOS. Status values: `active`,
+          `suspended` (or `sus`), `act/unsup`. Skip 1002–1005 and
+          (per NetCaster convention) skip VLAN 1.
+          NX-OS Ports column uses `Eth1/1` abbreviations, while IOS
+          uses `Gi1/0/1` — parser must accept both. Long port lists
+          wrap onto continuation lines (indented, no VLAN id at
+          start).
+        config_required: ""
+        notes: |
+          On NX-OS, VLANs only exist if either `vlan <id>` was
+          explicitly configured OR the VLAN is referenced by an
+          access/trunk port. There is no separate VLAN database
+          file as on IOS classic.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-NX-OS-device"
+        data_path: "/System/bd-items"
+        firmware_required: ">=9.2(1)"
+      restconf:
+        url_path: "/restconf/data/Cisco-NX-OS-device:System/bd-items"
+        firmware_required: ">=9.2(1)"
+      gnmi:
+        path: "/openconfig-network-instance:network-instances/network-instance/vlans"
+        firmware_required: ">=9.3(5)"
+
+  - type: SVI_CONFIG
+    description: "Display SVI (interface Vlan) running-config sections"
+    versions:
+      - applies_to: ">=6.0"
+        cli: 'show running-config | section "interface Vlan"'
+        sample_output: |
+          interface Vlan1
+            no ip redirects
+            no ipv6 redirects
+
+          interface Vlan10
+            description Drop-101 SVI
+            no shutdown
+            ip address 10.1.10.1/24
+            ip dhcp relay address 10.1.1.50
+            ip dhcp relay address 10.1.1.51
+            ip pim sparse-mode
+            ip igmp version 3
+
+          interface Vlan20
+            description Voice
+            no shutdown
+            ip address 10.1.20.1/24
+        parser_notes: |
+          Split on `(?=^interface Vlan)`. Per-block extraction:
+            ip address regex must accept BOTH `10.1.10.1 255.255.255.0`
+              (dotted netmask, IOS-style) AND `10.1.10.1/24` (CIDR,
+              NX-OS native form). Nexus emits CIDR by default.
+            ip dhcp relay address (\d+\.\d+\.\d+\.\d+)
+              — note: NX-OS uses `ip dhcp relay address`, NOT
+              `ip helper-address` (IOS). NetCaster's existing
+              `parse_svi_config` (inherited from cisco_ios) only
+              checks for `ip helper-address` and will MISS DHCP
+              relay servers on NX-OS.
+            ip igmp / ip pim sparse-mode regexes are unchanged.
+            shutdown / no shutdown — `no shutdown` is the typical
+            default to look for; treat absence of standalone
+            `^\s+shutdown$` as up.
+        config_required: |
+          feature interface-vlan    (REQUIRED on NX-OS — without it,
+                                     SVIs cannot be created)
+          feature dhcp              (for `ip dhcp relay address`)
+          feature pim               (for `ip pim sparse-mode`)
+        notes: |
+          `feature interface-vlan` is NX-OS-specific; on IOS, SVIs
+          are always available without a feature toggle. If absent,
+          `interface Vlan10` will fail with "Invalid command".
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-NX-OS-device"
+        data_path: "/System/intf-items/svi-items"
+        firmware_required: ">=9.2(1)"
+      restconf:
+        url_path: "/restconf/data/Cisco-NX-OS-device:System/intf-items/svi-items"
+        firmware_required: ">=9.2(1)"
+      gnmi:
+        path: "/openconfig-interfaces:interfaces/interface[name=Vlan*]"
+        firmware_required: ">=9.3(5)"
+
+  - type: STP_VLAN_LIST
+    description: "List VLANs participating in spanning tree"
+    versions:
+      - applies_to: ">=6.0"
+        cli: "show spanning-tree vlan"
+        sample_output: |
+          VLAN0001
+            Spanning tree enabled protocol rstp
+            Root ID    Priority    32769
+                       Address     001a.2b3c.4d5e
+                       This bridge is the root
+                       Hello Time  2  sec  Max Age 20 sec  Forward Delay 15 sec
+
+            Bridge ID  Priority    32769  (priority 32768 sys-id-ext 1)
+                       Address     001a.2b3c.4d5e
+                       Hello Time  2  sec  Max Age 20 sec  Forward Delay 15 sec
+
+          Interface           Role Sts Cost      Prio.Nbr Type
+          ------------------- ---- --- --------- -------- --------------------------------
+          Eth1/1              Desg FWD 4         128.1    P2p
+          Eth1/24             Desg FWD 4         128.24   P2p Edge
+        parser_notes: |
+          Per-VLAN headers are `VLAN<padded-id>` (e.g. VLAN0010 for
+          vlan 10). Extract VLAN IDs by matching `^VLAN(\d+)`.
+          Default protocol on NX-OS is `rstp` (Rapid PVST+); MST is
+          opt-in. Status enumeration values: FWD, BLK, LRN, LIS, DIS.
+        config_required: |
+          feature spanning-tree   (typically enabled by default; some
+                                   minimal images may require it)
+        notes: |
+          To list only the VLANs (not full per-interface detail), pipe:
+          `show spanning-tree vlan | include ^VLAN`. NX-OS does not
+          have a separate `show spanning-tree summary` VLAN-list view
+          equivalent to IOS classic's per-mode summary.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-NX-OS-device"
+        data_path: "/System/stp-items"
+        firmware_required: ">=9.2(1)"
+      restconf:
+        url_path: "/restconf/data/Cisco-NX-OS-device:System/stp-items"
+        firmware_required: ">=9.2(1)"
+      gnmi: null
+
+  - type: HARDWARE_IDENTITY
+    description: "Composite — chassis serial, base MAC, supervisor/module serials"
+    versions:
+      - applies_to: ">=6.0"
+        cli: |
+          show inventory
+          show version
+        sample_output: |
+          # show inventory
+          NAME: "Chassis",  DESCR: "Nexus9000 C93180YC-FX Chassis"
+          PID: N9K-C93180YC-FX  ,  VID: V03 ,  SN: FDO12345ABC
+
+          NAME: "Slot 1",  DESCR: "1/10/25/40/100 Gbps Ethernet Module"
+          PID: N9K-C93180YC-FX  ,  VID: V03 ,  SN: FDO12345ABC
+
+          NAME: "Power Supply 1",  DESCR: "Nexus9000 C93180YC-FX Chassis Power Supply"
+          PID: NXA-PAC-650W-PE   ,  VID: V01 ,  SN: ART2208ZXZ1
+
+          NAME: "Fan 1",  DESCR: "Nexus9000 C93180YC-FX Chassis Fan Module"
+          PID: NXA-FAN-30CFM-F   ,  VID: V01 ,  SN: N/A
+
+          # show version
+          Cisco Nexus Operating System (NX-OS) Software
+          ...
+          Hardware
+            cisco Nexus9000 C93180YC-FX chassis
+            Intel(R) Xeon(R) CPU  D-1528 @ 1.90GHz with 24571852 kB of memory.
+            Processor Board ID FDO12345ABC
+
+            Device name: SW-DC-01
+            bootflash:  115805356 kB
+          ...
+        parser_notes: |
+          From `show inventory`: split on `\n(?=NAME:)`, find blocks
+          where NAME contains "Chassis" (or "Module"/"Slot N" if a
+          modular chassis like Nexus 9500), extract `SN:\s*(\S+)`.
+          Distinct from IOS — NX-OS modular chassis (7000/9500) have
+          a single chassis SN plus per-supervisor and per-linecard
+          SNs; pizza-box Nexus (9300) has just one chassis SN matching
+          its single module.
+          From `show version`: `Processor Board ID\s+(\S+)` is the
+          fallback chassis serial. Base MAC is NOT typically printed
+          by `show version` on NX-OS — use `show interface mac-address`
+          or pull the chassis MAC from `show sprom backplane 1` /
+          `show inventory chassis` if needed. NetCaster's existing
+          `get_hardware_identity` (inherited from cisco_ios) will
+          return base_mac="" on most Nexus images — acceptable, but
+          worth noting.
+        config_required: ""
+        notes: |
+          On Nexus 9500 / 7000 modular chassis there is one chassis
+          SN + multiple supervisor/linecard SNs. On Nexus 9300 (pizza
+          box) the chassis SN is the only relevant identifier.
+          `show inventory` does NOT use the IOS "Switch N" naming
+          for stacks — Nexus does not stack the way Catalyst 9300
+          does (vPC and VSS are different abstractions).
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-NX-OS-device"
+        data_path: "/System/ch-items (chassis), /System/eqpt-items"
+        firmware_required: ">=9.2(1)"
+      restconf:
+        url_path: "/restconf/data/Cisco-NX-OS-device:System/ch-items"
+        firmware_required: ">=9.2(1)"
+      gnmi:
+        path: "/openconfig-platform:components"
+        firmware_required: ">=9.3(5)"
+
+  - type: HOSTNAME
+    description: "The switch's configured hostname"
+    versions:
+      - applies_to: ">=6.0"
+        cli: "show hostname"
+        sample_output: |
+          SW-DC-01
+        parser_notes: |
+          Single-line output — the hostname only. Strip whitespace.
+          NetCaster typically derives hostname from the netmiko
+          prompt; this command is the explicit fallback.
+        config_required: ""
+        notes: |
+          NX-OS also accepts `show switchname` (alias). The running-
+          config form `hostname <name>` is also extractable from
+          `show running-config | include ^hostname`.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-NX-OS-device"
+        data_path: "/System/name"
+        firmware_required: ">=9.2(1)"
+      restconf:
+        url_path: "/restconf/data/Cisco-NX-OS-device:System/name"
+        firmware_required: ">=9.2(1)"
+      gnmi:
+        path: "/openconfig-system:system/state/hostname"
+        firmware_required: ">=9.3(5)"
+
+  - type: VERSION
+    description: "Firmware version string — critical for catalog version matching"
+    versions:
+      - applies_to: ">=6.0"
+        cli: "show version"
+        sample_output: |
+          Cisco Nexus Operating System (NX-OS) Software
+          TAC support: http://www.cisco.com/tac
+          Copyright (C) 2002-2024, Cisco and/or its affiliates.
+          All rights reserved.
+          ...
+
+          Software
+            BIOS: version 05.47
+            NXOS: version 10.3(2) [build 10.3(2)]
+            BIOS compile time:  04/12/2023
+            NXOS image file is: bootflash:///nxos.10.3.2.bin
+            NXOS compile time:  10/14/2023 18:00:00 [10/14/2023 22:50:25]
+
+          Hardware
+            cisco Nexus9000 C93180YC-FX chassis
+            Intel(R) Xeon(R) CPU  D-1528 @ 1.90GHz with 24571852 kB of memory.
+            Processor Board ID FDO12345ABC
+
+            Device name: SW-DC-01
+            bootflash:  115805356 kB
+          ...
+        parser_notes: |
+          Primary version regex:
+            NXOS:\s+version\s+(\S+)
+          which captures e.g. `10.3(2)`, `9.3(11)`, `7.0(3)I7(10)`.
+          Older 7.x trains use `system: version <X>` instead of
+          `NXOS: version` — fallback to:
+            (?:NXOS|system):\s+version\s+(\S+)
+          The version string contains parentheses
+          (e.g. `9.3(5)`) — must be regex-escaped if used as input
+          to a re.compile pattern downstream.
+        config_required: ""
+        notes: |
+          NX-OS version format: `<train>(<minor>)` or
+          `<train>(<minor>)<bugfix>(<patch>)` for older 7.x.
+          Catalog matchers should treat the parenthetical as part
+          of the version (e.g. `9.3(5)` is distinct from `9.3` and
+          from `9.3.5`).
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-NX-OS-device"
+        data_path: "/System/showversion-items"
+        firmware_required: ">=9.2(1)"
+      restconf:
+        url_path: "/restconf/data/Cisco-NX-OS-device:System/showversion-items"
+        firmware_required: ">=9.2(1)"
+      gnmi:
+        path: "/openconfig-system:system/state/software-version"
+        firmware_required: ">=9.3(5)"
+
+  # ── Write operations — port-level ────────────────────────────────
+
+  - type: PORT_SHUTDOWN
+    description: "Administratively disable an interface"
+    versions:
+      - applies_to: ">=6.0"
+        cli: |
+          interface {interface}
+          shutdown
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Same form as IOS. `{interface}` accepts either NX-OS
+          abbreviations (`Eth1/24`) or full names (`Ethernet1/24`).
+          Two-line config-mode sequence sent via netmiko's
+          send_config_set.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-NX-OS-device"
+        data_path: "/System/intf-items/phys-items/PhysIf-list[id={interface}]/adminSt"
+        firmware_required: ">=9.2(1)"
+      restconf:
+        url_path: "/restconf/data/Cisco-NX-OS-device:System/intf-items/phys-items/PhysIf-list={interface}"
+        firmware_required: ">=9.2(1)"
+      gnmi:
+        path: "/openconfig-interfaces:interfaces/interface[name={interface}]/config/enabled"
+        firmware_required: ">=9.3(5)"
+
+  - type: PORT_NO_SHUTDOWN
+    description: "Administratively enable an interface"
+    versions:
+      - applies_to: ">=6.0"
+        cli: |
+          interface {interface}
+          no shutdown
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Same form as IOS. NX-OS reports a brief link-flap on
+          re-enable, just like IOS.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-NX-OS-device"
+        data_path: "/System/intf-items/phys-items/PhysIf-list[id={interface}]/adminSt"
+        firmware_required: ">=9.2(1)"
+      restconf:
+        url_path: "/restconf/data/Cisco-NX-OS-device:System/intf-items/phys-items/PhysIf-list={interface}"
+        firmware_required: ">=9.2(1)"
+      gnmi:
+        path: "/openconfig-interfaces:interfaces/interface[name={interface}]/config/enabled"
+        firmware_required: ">=9.3(5)"
+
+  - type: PORT_VLAN_ASSIGN
+    description: "Set the access VLAN on an interface, with edge-port hardening"
+    versions:
+      - applies_to: ">=6.0"
+        cli: |
+          interface {interface}
+          switchport access vlan {vlan_id}
+          spanning-tree port type edge
+          spanning-tree bpduguard enable
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Mirrors NetCaster's existing
+          `CiscoNXOSPlatform.get_vlan_assign_commands`.
+          Critical: NX-OS uses `spanning-tree port type edge` —
+          NOT `spanning-tree portfast` (which is the IOS form).
+          Sending `spanning-tree portfast` to NX-OS returns an
+          "Invalid command" error and the VLAN assign step before
+          it has already taken effect — partial-apply risk.
+          BPDU guard syntax (`spanning-tree bpduguard enable`) is
+          identical to IOS.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-NX-OS-device"
+        data_path: "/System/intf-items/phys-items/PhysIf-list[id={interface}]/phys-items/accessVlan"
+        firmware_required: ">=9.2(1)"
+      restconf:
+        url_path: "/restconf/data/Cisco-NX-OS-device:System/intf-items/phys-items/PhysIf-list={interface}"
+        firmware_required: ">=9.2(1)"
+      gnmi:
+        path: "/openconfig-interfaces:interfaces/interface[name={interface}]/openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan/config/access-vlan"
+        firmware_required: ">=9.3(5)"
+
+  - type: PORT_POE_OFF
+    description: "Disable PoE on an interface"
+    versions:
+      - applies_to: ">=7.0"
+        cli: |
+          interface {interface}
+          power inline never
+        sample_output: ""
+        parser_notes: ""
+        config_required: |
+          feature poe   (required on PoE-capable Nexus 9300 SKUs;
+                         non-PoE Nexus chassis will reject the command)
+        notes: |
+          PoE is supported only on specific Nexus 9300 PoE SKUs
+          (e.g. N9K-C93108TC-FX3P). Most data-center Nexus models
+          have NO PoE hardware; the command silently no-ops or
+          rejects depending on image. NetCaster's safe-write path
+          should validate PoE capability before issuing.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: PORT_POE_ON
+    description: "Enable PoE on an interface"
+    versions:
+      - applies_to: ">=7.0"
+        cli: |
+          interface {interface}
+          power inline auto
+        sample_output: ""
+        parser_notes: ""
+        config_required: |
+          feature poe   (PoE-capable Nexus 9300 SKUs only)
+        notes: |
+          `auto` allows the switch to negotiate power class with
+          the connected device. `static [max <mW>]` is also
+          accepted on Nexus PoE SKUs; NetCaster defaults to auto.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: PORT_POLICY_PUSH
+    description: "Composite port policy: portfast (edge), bpduguard, optional storm-control, description"
+    versions:
+      - applies_to: ">=6.0"
+        cli: |
+          interface {interface}
+          spanning-tree port type edge
+          spanning-tree bpduguard enable
+          storm-control broadcast level {storm_control_level}
+          storm-control multicast level {storm_control_level}
+          description {description}
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Mirrors `CiscoNXOSPlatform.get_port_config_commands`.
+          The composite is built conditionally per the kwargs in
+          the handler — only sub-lines whose flag is True are
+          emitted. The full multi-line form above is the maximal
+          set; partial omission is normal.
+          Storm-control level is a percentage of bandwidth (e.g.
+          `1.00` for 1%). Same syntax as IOS. NX-OS also supports
+          `storm-control unicast level <X>` which IOS classic does
+          not — out of scope for NetCaster's current handler.
+          On NX-OS, `spanning-tree port type edge` MUST be used
+          instead of IOS's `spanning-tree portfast`.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  # ── Write operations — provisioning ──────────────────────────────
+
+  - type: VLAN_CREATE
+    description: "Create a VLAN definition"
+    versions:
+      - applies_to: ">=6.0"
+        cli: |
+          vlan {vlan_id}
+           name {name}
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Same syntax as IOS. The `name` line is optional — if no
+          name is supplied, NetCaster's handler omits it.
+          On NX-OS, VLANs created without an `interface VlanN` SVI
+          remain pure L2; SVI creation is a separate step
+          (SVI_CREATE) and requires `feature interface-vlan` first.
+          Reserved VLAN range on NX-OS is configurable (default
+          3968–4095 for internal use); creating in that range is
+          rejected.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-NX-OS-device"
+        data_path: "/System/bd-items/bd-items/BD-list"
+        firmware_required: ">=9.2(1)"
+      restconf:
+        url_path: "/restconf/data/Cisco-NX-OS-device:System/bd-items/bd-items/BD-list={vlan_id}"
+        firmware_required: ">=9.2(1)"
+      gnmi: null
+
+  - type: SVI_CREATE
+    description: "Create a Switch Virtual Interface for a VLAN"
+    versions:
+      - applies_to: ">=6.0"
+        cli: |
+          interface Vlan{vlan_id}
+           ip address {ip_address}
+           ip dhcp relay address {dhcp_server}
+           ip pim sparse-mode
+           no shutdown
+        sample_output: ""
+        parser_notes: ""
+        config_required: |
+          feature interface-vlan    (REQUIRED — NX-OS rejects
+                                     `interface VlanN` without it)
+          feature dhcp              (REQUIRED for `ip dhcp relay address`)
+          feature pim               (REQUIRED if pim_sparse=True)
+          feature ngmvpn / pim      (depending on multicast needs)
+        notes: |
+          Differences from IOS handler
+          (`CiscoIOSPlatform.get_svi_create_commands`):
+            - IP address: NX-OS native form is CIDR
+              (`ip address 10.1.10.1/24`); the dotted-mask form
+              `ip address 10.1.10.1 255.255.255.0` is also accepted.
+              Either is fine to push.
+            - DHCP relay: NX-OS uses
+              `ip dhcp relay address <ip>`, NOT
+              `ip helper-address <ip>` (which is the IOS form).
+              NetCaster's current handler inherits the IOS form via
+              the cisco_ios parent; pushing `ip helper-address` to
+              NX-OS will fail with "Invalid command". This is a
+              real bug surface in the existing code that NX-OS
+              SVI creation would hit.
+            - IGMP: NetCaster's IOS handler emits
+              `ip igmp join-group 224.0.0.0` which is unusual on
+              NX-OS — typically you set
+              `ip igmp version 3` or just leave defaults. The
+              `ip igmp join-group` form makes the SVI a multicast
+              group member which is rarely what's wanted.
+            - PIM sparse-mode: same syntax (`ip pim sparse-mode`).
+          The composite is built conditionally per kwargs in the
+          handler; the full form above is the maximal set.
+          `feature interface-vlan`, `feature dhcp`, `feature pim`
+          must be enabled OUT-OF-BAND first; this catalog entry
+          does not include enabling them since that's a privileged
+          fabric-wide change.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-NX-OS-device"
+        data_path: "/System/intf-items/svi-items/If-list"
+        firmware_required: ">=9.2(1)"
+      restconf:
+        url_path: "/restconf/data/Cisco-NX-OS-device:System/intf-items/svi-items/If-list=Vlan{vlan_id}"
+        firmware_required: ">=9.2(1)"
+      gnmi: null
+
+  - type: STP_VLAN_ENABLE
+    description: "Enable spanning-tree for a VLAN"
+    versions:
+      - applies_to: ">=6.0"
+        cli: "spanning-tree vlan {vlan_id}"
+        sample_output: ""
+        parser_notes: ""
+        config_required: |
+          feature spanning-tree   (typically enabled by default)
+        notes: |
+          On NX-OS in default Rapid PVST+ mode, spanning-tree is
+          implicitly active for any defined VLAN; the explicit
+          `spanning-tree vlan N` command tunes per-VLAN parameters
+          (priority, etc.) but is NOT required to "turn on" STP for
+          a VLAN. To explicitly disable STP for a VLAN, use
+          `no spanning-tree vlan N`.
+          If the switch is in MST mode (`spanning-tree mode mst`),
+          per-VLAN commands map to the MST instance instead — this
+          changes behavior subtly. NetCaster's smart-VLAN flow
+          assumes Rapid PVST+ which is the NX-OS default.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  # ── Persistence ──────────────────────────────────────────────────
+
+  - type: SAVE_CONFIG
+    description: "Persist running-config to startup-config"
+    versions:
+      - applies_to: ">=6.0"
+        cli: "copy running-config startup-config"
+        sample_output: |
+          [########################################] 100%
+          Copy complete.
+        parser_notes: |
+          Output is a progress bar followed by `Copy complete.`
+          A nonzero exit / an error message (e.g.
+          `Configuration update aborted`) indicates failure.
+        config_required: ""
+        notes: |
+          NetCaster does NOT save to startup by default. Per the
+          existing handler docstring: `this tool does NOT save to
+          startup by default`. SAVE_CONFIG is invoked only when the
+          operator explicitly requests persistence. NX-OS does not
+          have an `auto-save` equivalent.
+          Shorthand `copy run start` is accepted but the full form
+          is preferred for unambiguous logging.
+    protocol_alternatives:
+      netconf:
+        yang_model: "Cisco-NX-OS-device"
+        data_path: "(NETCONF <copy-config> RPC: source=running, target=startup)"
+        firmware_required: ">=9.2(1)"
+      restconf: null
+      gnmi: null

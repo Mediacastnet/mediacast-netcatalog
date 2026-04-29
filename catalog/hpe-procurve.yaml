@@ -1,0 +1,1034 @@
+# ── Vendor identity ────────────────────────────────────────────────
+vendor: hpe_procurve
+display_name: "HPE / Aruba ProCurve / ArubaOS-Switch (legacy)"
+manufacturer: "Hewlett Packard Enterprise (Aruba Networks)"
+product_family: "ProCurve / ArubaOS-Switch (a.k.a. Provision OS)"
+notes: |
+  This is the LEGACY Aruba switching line — distinct from AOS-CX.
+  Covers HP/HPE ProCurve and ArubaOS-Switch (sometimes branded
+  "Provision OS"). Common installed-base models: 2530, 2920, 2930F,
+  2930M, 3810M, 5400R / zl2. Firmware version strings are typically
+  shaped like `WC.16.10.0021`, `KB.16.10.0021`, `YA.16.10.0021`,
+  `YB.16.10.0021`, where the two-letter prefix denotes the platform
+  family and the rest is the train + build (e.g. 16.10.0021).
+
+  Treat 16.08 as the realistic baseline for REST-API-driven
+  automation; 16.10 / 16.11 broaden the REST surface (MAC table,
+  better auth). For pre-16.x firmware (e.g. K.15.x on older 5400zl),
+  CLI is the only programmatic surface — REST is absent.
+
+  Major divergences from Cisco / AOS-CX you must internalize before
+  parsing:
+    - Interface naming is bare port number (e.g. `24`) or a slot
+      letter + number on chassis switches (e.g. `A1`, `B12`). Trunks
+      (LAGs) are `Trk1`, `Trk2`, … — not `Port-channel1`.
+    - `show vlans` (note the trailing `s`) is the canonical VLAN
+      listing — not `show vlan brief`.
+    - VLAN port membership is `tagged` / `untagged` from inside the
+      `vlan <id>` config context; there is no Cisco-style
+      `switchport access vlan` / `switchport trunk` on access ports.
+    - "Trunk" on ProCurve means LAG (link aggregation), NOT 802.1Q
+      tagged uplink. Do not conflate the two when reading docs or
+      generating commands.
+    - Persistence is `write memory` (`wr mem`). There is no
+      `copy running-config startup-config` — that is Cisco syntax.
+    - PoE syntax (`power-over-ethernet` / `no power-over-ethernet`)
+      coincidentally matches AOS-CX, since AOS-CX inherited it.
+
+  PROTOCOL GAP — read this before planning a programmatic-read path:
+    - NETCONF / YANG: NOT supported. Aruba never delivered NETCONF
+      on the ProCurve / ArubaOS-Switch line. NETCONF on Aruba only
+      arrived with AOS-CX.
+    - gNMI / OpenConfig: NOT supported. Same story.
+    - RESTCONF: NOT supported.
+    - REST API (Aruba's proprietary JSON API): introduced and matured
+      across the 16.x trains. Pre-16.x, the only programmatic surface
+      is SNMP + CLI screen-scraping.
+    - SNMP v2c / v3: supported across all firmware in scope, and is
+      historically the dominant management plane for ProCurve. For
+      command types where REST coverage is thin, SNMP (with the
+      classic IETF MIBs — IF-MIB, BRIDGE-MIB, IP-MIB, LLDP-MIB) is
+      typically the better non-CLI fallback.
+
+  All `protocol_alternatives` blocks below reflect the ProCurve REST
+  API only. NETCONF / gNMI are uniformly null and should be treated
+  as architecturally absent on this platform — do not re-research.
+
+# ── Documentation sources ──────────────────────────────────────────
+sources:
+  - title: "Aruba Basic Operation Guide for AOS-S Switch 16.10 (HPE Aruba)"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-Switch/16.10/Aruba%20Basic%20Operation%20Guide%20for%20AOS-S%20Switch%2016.10.pdf"
+    accessed: "2026-04-28"
+  - title: "Aruba 2930 M/F Management and Configuration Guide for AOS-S Switch 16.10"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-Switch/16.10/Aruba%202930%20M&F%20Management%20and%20Configuration%20Guide%20for%20ArubaOS-S%2016.10.pdf"
+    accessed: "2026-04-28"
+  - title: "Aruba 3810M / 5400R Management and Configuration Guide for AOS-S Switch 16.10"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-Switch/16.10/Aruba%203810M&5400R%20Management%20and%20Configuration%20Guide%20for%20ArubaOS-Switch%2016.10.pdf"
+    accessed: "2026-04-28"
+  - title: "Aruba 2530 Management and Configuration Guide for AOS-S Switch 16.10"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-Switch/16.10/Aruba%202530%20Management%20and%20Configuration%20Guide%20for%20ArubaOS-Switch%2016.10.pdf"
+    accessed: "2026-04-28"
+  - title: "Aruba 2920 Management and Configuration Guide for AOS-S Switch 16.10"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-Switch/16.10/Aruba%202920%20Management%20and%20Configuration%20Guide%20for%20ArubaOS-Switch%2016.10.pdf"
+    accessed: "2026-04-28"
+  - title: "Aruba REST API Guide for ArubaOS-Switch 16.09"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-Switch/16.09/Aruba%20REST%20API%20Guide%20for%20ArubaOS-Switch%2016.09.pdf"
+    accessed: "2026-04-28"
+  - title: "HPE Aruba Networking REST API for AOS-S Switch 16.11"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-Switch/16.11/Aruba%20REST%20API%20for%20AOS-S%2016.11.pdf"
+    accessed: "2026-04-28"
+  - title: "show lldp info remote-device — AOS-S 16.11 Management Command Guide"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-S/16.11/MCG/KB/content/kb/sho-lld-inf-rem-dev.htm"
+    accessed: "2026-04-28"
+  - title: "show cdp neighbors — AOS-S 16.10 Management Command Guide"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-S/16.10/MCG/KB/content/kb/sho-cdp-nei.htm"
+    accessed: "2026-04-28"
+  - title: "show interfaces — AOS-S 16.11 Management Command Guide"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-S/16.11/MCG/KB/content/kb/sho-int110.htm"
+    accessed: "2026-04-28"
+  - title: "show interfaces brief — AOS-S 16.11 Management Command Guide"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-S/16.11/MCG/KB/content/kb/sho-int-bri.htm"
+    accessed: "2026-04-28"
+  - title: "show mac-address — AOS-S 16.11 Management Command Guide"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-S/16.11/MCG/WC/content/wc/sho-mac-add-vla-por-mac-add-tun.htm"
+    accessed: "2026-04-28"
+  - title: "show system information — AOS-S 16.10 Management Command Guide"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-S/16.10/MCG/WC/content/wc/sho-sys-inf.htm"
+    accessed: "2026-04-28"
+  - title: "Disabling or re-enabling PoE port operation — AOS-S 16.10 MCG"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-S/16.10/MCG/WB/content/common%20files/dis-re-ena-poe-por-ope.htm"
+    accessed: "2026-04-28"
+  - title: "Trunk group operation using LACP — AOS-S 16.10 MCG"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-S/16.10/MCG/WC/content/common%20files/tru-gro-ope-usi-lac.htm"
+    accessed: "2026-04-28"
+  - title: "Viewing a switch's VLAN configuration — AOS-S 16.11 ATMG"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-S/16.11/ATMG/KB/content/kb/vie-swi-vla-con9.htm"
+    accessed: "2026-04-28"
+  - title: "Example of tagged and untagged VLAN port assignments — AOS-S 16.11 ATMG"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-S/16.11/ATMG/YC/content/common%20files/exa-tag-untag-vla-por-ass.htm"
+    accessed: "2026-04-28"
+  - title: "Getting started with ArubaOS-Switch RESTful API (community-maintained)"
+    url: "https://arubaos-switch-rest-guide.readthedocs.io/"
+    accessed: "2026-04-28"
+  - title: "MAC-table support via REST in ArubaOS-Switch 16.10 — Airheads community"
+    url: "https://community.arubanetworks.com/discussion/mac-table-support-via-rest-in-arubaos-switch-1610"
+    accessed: "2026-04-28"
+  - title: "ArubaOS-Switch 16.10.0016 Release Notes"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-Switch/RN/16.10/ArubaOS-Switch%2016.10.0016%20Release%20Notes.pdf"
+    accessed: "2026-04-28"
+  - title: "ArubaOS-Switch 16.08.0022 Release Notes"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-Switch/RN/16.08/ArubaOS-Switch%2016.08.0022%20Release%20Notes.pdf"
+    accessed: "2026-04-28"
+  - title: "HP ProCurve CLI Commands Cheat Sheet"
+    url: "https://www.sysadmintutorials.com/tutorials/hp/hp-procurve-advanced-cli-commands-reference/"
+    accessed: "2026-04-28"
+
+# ── Protocol capabilities ──────────────────────────────────────────
+# The legacy ProCurve / ArubaOS-Switch line has a meaningfully
+# narrower programmatic surface than IOS-XE / NX-OS / AOS-CX. Be
+# honest about this — it shapes implementation strategy.
+protocol_capabilities:
+  netconf:
+    introduced_in: "NEVER"
+    notes: |
+      NETCONF was never delivered on ProCurve / ArubaOS-Switch.
+      Aruba's NETCONF/YANG investment landed on AOS-CX, the
+      successor platform. Treat as architecturally absent for this
+      vendor; do not plan for a NETCONF read path.
+  restconf:
+    introduced_in: "NEVER"
+    notes: |
+      RESTCONF (RFC 8040) is not implemented on ArubaOS-Switch.
+      Aruba shipped a proprietary JSON REST API instead — see the
+      `rest_api` block below.
+  gnmi:
+    introduced_in: "NEVER"
+    notes: |
+      gNMI / OpenConfig telemetry is not supported. gNMI on Aruba
+      hardware only exists on AOS-CX (and even there, support is
+      partial). Treat as architecturally absent.
+  rest_api:
+    introduced_in: "16.04"
+    matured_in: "16.08"
+    notes: |
+      Aruba's proprietary REST API. Authentication via login session
+      cookie obtained from `POST /rest/v1/login-sessions`. Versioned
+      under `/rest/v1`, `/rest/v3`, `/rest/v4`, `/rest/v7`, etc. —
+      NOT a single namespace; each endpoint is bound to a particular
+      `/rest/vN` revision. Auth/RADIUS/TACACS+ support added in
+      16.08; MAC table endpoint added in 16.10; factory-default
+      first-boot REST-only mode in 16.10.0009+. REST coverage of
+      operational state is partial — many `show` commands have NO
+      REST equivalent and require CLI screen-scraping.
+  snmp:
+    introduced_in: "*"
+    notes: |
+      SNMPv2c and SNMPv3 supported across all firmware in scope.
+      Historically the dominant management plane for ProCurve.
+      Standard IETF MIBs (IF-MIB, BRIDGE-MIB, IP-MIB, ENTITY-MIB,
+      LLDP-MIB, IEEE8023-LAG-MIB) plus HP-ICF / NETSWITCH private
+      MIBs. For abstract-command-catalog purposes, SNMP is treated
+      as a fallback path documented in `notes` rather than a
+      first-class `protocol_alternatives` slot — the schema currently
+      reserves those slots for NETCONF/RESTCONF/gNMI.
+
+# ── Commands ───────────────────────────────────────────────────────
+commands:
+
+  # ─── Reads ──────────────────────────────────────────────────────
+  - type: ARP_TABLE
+    description: "Display the ARP table"
+    versions:
+      - applies_to: "*"
+        cli: "show arp"
+        sample_output: |
+           IP ARP table
+
+           IP Address       MAC Address       Type    Port
+           ---------------  ----------------- ------- ----
+           172.16.0.20      000056-000000     dynamic 49
+           172.16.0.151     a0369f-5b23bb     dynamic 49
+           10.10.10.1       001234-aabbcc     dynamic A1
+        parser_notes: |
+          Header line "IP ARP table" + blank line, then the column
+          header `IP Address  MAC Address  Type  Port`, then a
+          dashed separator, then rows. Skip the first 4 lines.
+          MAC format is HP/Aruba style: `xxxxxx-xxxxxx` (two groups
+          of 6 hex chars separated by a single dash). NOT Cisco's
+          `xxxx.xxxx.xxxx` and NOT colon-separated. The parser must
+          normalize. Port column is the bare port id (`49`, `A1`,
+          `Trk1`) — no `GigabitEthernet` prefix. Type values are
+          `dynamic` or `static`.
+        config_required: ""
+        notes: |
+          ARP is only populated for VLANs where the switch has an L3
+          interface (SVI with `ip address`). Pure L2-only ProCurve
+          deployments will show only the management VLAN's gateway
+          and the switch's own ARP entries.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: MAC_TABLE
+    description: "Display the MAC address table"
+    versions:
+      - applies_to: "*"
+        cli: "show mac-address"
+        sample_output: |
+           Status and Counters - Port Address Table
+
+             MAC Address    Port           VLAN
+             -------------- -------------- -----
+             001234-aabbcc  1              1
+             0050b6-112233  2              10
+             aabbcc-001122  Trk1           1
+             a0369f-5b23bb  24             20
+        parser_notes: |
+          Skip the title line and the column header / dashed
+          separator. Three columns: `MAC Address`, `Port`, `VLAN`.
+          Note the column order is DIFFERENT from Cisco's
+          `Vlan Mac Address Type Ports` — VLAN is LAST on ProCurve,
+          FIRST on Cisco. Do not blindly reuse a Cisco mac-table
+          parser. There is no `Type` column (dynamic vs static) in
+          the default `show mac-address` output; use
+          `show mac-address <mac> detail` to get static-entry detail
+          per-MAC if needed.
+        config_required: ""
+        notes: |
+          Variants:
+            - `show mac-address <port-list>` — restrict to ports
+            - `show mac-address vlan <vid>` — restrict to one VLAN
+            - `show mac-address <mac-addr>` — locate one MAC
+          Note the SINGULAR `mac-address` (no `-table` suffix).
+          ProCurve does NOT use Cisco's `show mac address-table`
+          spelling.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: NEIGHBOR_DETAIL
+    description: "CDP neighbor detail (vendor-preferred discovery protocol)"
+    versions:
+      - applies_to: "*"
+        cli: "show cdp neighbors detail"
+        sample_output: |
+           CDP neighbors information
+
+            Port   : 24
+            Device ID    : core-switch-01.example.com
+            Address Type : IP
+            Address      : 10.0.0.1
+            Platform     : cisco WS-C3850-48P
+            Capability   : Router Switch IGMP
+            Device Port  : GigabitEthernet1/0/24
+            Version      : Cisco IOS Software, Catalyst L3 Switch
+                           Software (CAT3K_CAA-UNIVERSALK9-M),
+                           Version 16.12.4
+            Holdtime     : 165
+        parser_notes: |
+          Per-port stanzas separated by blank lines. Field labels
+          are colon-separated, with the value continuing on
+          continuation lines for multi-line fields like `Version`.
+          The local port is in the `Port` field; the remote port is
+          in `Device Port`.
+        config_required: |
+          cdp run
+        notes: |
+          ProCurve enables CDP by default on most platforms (CDP is
+          *receive-listen* by default; transmit must be explicitly
+          enabled with `cdp run`). On switches in CDP-listen-only
+          mode the local switch knows its neighbors but won't
+          advertise itself — keep this in mind for symmetric
+          discovery walks. Many enterprises prefer LLDP on ProCurve
+          since CDP is Cisco-proprietary; consider LLDP_DETAIL the
+          primary discovery path on this vendor (see below).
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: LLDP_DETAIL
+    description: "LLDP neighbor detail"
+    versions:
+      - applies_to: "*"
+        cli: "show lldp info remote-device"
+        sample_output: |
+           LLDP Remote Devices Information
+
+            LocalPort | ChassisId                   PortId    PortDescr SysName
+            --------- + --------------------------- --------- --------- ----------
+            1         | 00 11 85 35 3b 80           1         Port  1   Switch3500yl
+            2         | 00 11 85 cf 66 60           2         Port  2   Switch3500yl
+            17        | 6c f3 7f aa bb cc           AP-eth0   AP-eth0  aruba-ap-225
+        parser_notes: |
+          Summary form: 5-column space-separated table with a
+          dashed header row. ChassisId is shown as space-separated
+          hex bytes (NOT dashed/colon MAC) — normalize before
+          comparing to MAC tables. For the per-neighbor detail form
+          use `show lldp info remote-device <port>`, which emits a
+          stanza-style block with fields `Local Port`, `ChassisType`,
+          `ChassisId`, `PortType`, `PortId`, `SysName`,
+          `System Descr`, `PortDescr`, `Pvid`,
+          `System Capabilities Supported / Enabled`,
+          `Remote Management Address`. The detail form is what to
+          use for venue-discovery; the summary form is too lossy.
+        config_required: |
+          lldp run
+        notes: |
+          LLDP is enabled by default on most ArubaOS-Switch
+          platforms in 16.x. LLDP is the preferred discovery
+          protocol on this vendor — set `LLDP_DETAIL` as the
+          primary, fall back to CDP (`NEIGHBOR_DETAIL`) only if
+          LLDP is administratively disabled.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: PORT_CHANNEL_MEMBERS
+    description: "Map link-aggregation (Trunk) groups to physical members"
+    versions:
+      - applies_to: "*"
+        cli: "show trunks"
+        sample_output: |
+           Load Balancing Method:  L3-based (default)
+
+             Port | Name                             Type      | Group Type
+             ---- + -------------------------------- --------- + ----- -----
+             21   |                                  100/1000T | Trk1  LACP
+             22   |                                  100/1000T | Trk1  LACP
+             23   |                                  100/1000T | Trk2  Trunk
+             24   |                                  100/1000T | Trk2  Trunk
+        parser_notes: |
+          5-column table. Member is in the `Port` column, parent
+          aggregate in the `Group` column (e.g. `Trk1`, `Trk2`).
+          `Type` distinguishes `LACP` (dynamic) from `Trunk`
+          (static aggregation, ProCurve's term for non-LACP
+          link-agg). Multiple rows share a group id — flatten
+          accordingly.
+        config_required: ""
+        notes: |
+          ProCurve TERMINOLOGY HAZARD: "Trunk" here means LAG /
+          link aggregation, NOT 802.1Q VLAN tagging. The 802.1Q
+          notion is expressed via `tagged` / `untagged` membership
+          in `vlan <id>` config blocks (see VLAN_LIST notes). Do
+          not treat `Trk1` as if it were a Cisco trunk port.
+          For LACP-specific state use `show lacp` (peer/partner
+          info) or `show lacp summary` (counters).
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: INTERFACE_CONFIG
+    description: "Show running-config for a single interface"
+    versions:
+      - applies_to: "*"
+        cli: "show running-config interface {interface}"
+        sample_output: |
+           Running configuration:
+
+           interface 24
+              name "Access-Edge-24"
+              untagged vlan 20
+              tagged vlan 30
+              power-over-ethernet
+              spanning-tree admin-edge-port
+              spanning-tree bpdu-protection
+              exit
+        parser_notes: |
+          Stanza-style: `interface <port>` opening line, indented
+          body, `exit` close. VLAN membership for an access port
+          appears as `untagged vlan <id>`; tagged uplinks list
+          additional `tagged vlan <id>` lines. Note membership is
+          ALSO emitted from inside the `vlan <id>` config block
+          (with `untagged 24` / `tagged 24`) — the running-config
+          contains BOTH representations and a robust parser must
+          reconcile or pick one.
+        config_required: ""
+        notes: |
+          `{interface}` is the bare port id: `24`, `A1`, `B12`,
+          `Trk1`. NOT `GigabitEthernet1/0/24`, NOT `1/1/24`.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: INTERFACE_CONFIG_BULK
+    description: "All-at-once interface running-config"
+    versions:
+      - applies_to: "*"
+        cli: "show running-config"
+        sample_output: |
+           Running configuration:
+
+           ; JL322A Configuration Editor; Created on release #WC.16.10.0021
+           ; Ver #14:...
+
+           hostname "venue-edge-01"
+           ...
+           interface 1
+              name "AP-Uplink-01"
+              untagged vlan 1
+              tagged vlan 100,200
+              exit
+           interface 2
+              disable
+              exit
+           ...
+           vlan 1
+              name "DEFAULT_VLAN"
+              untagged 1-24,A1-A4
+              ip address dhcp-bootp
+              exit
+           vlan 100
+              name "Voice"
+              tagged 1-24
+              exit
+        parser_notes: |
+          ProCurve has no per-interface bulk equivalent of Cisco's
+          `show running-config | section interface`. The cheapest
+          way to get all interface configs is the FULL
+          running-config and slice client-side. Stanza boundaries
+          are `interface <port>` ... `exit` and `vlan <id>` ...
+          `exit`. Note that VLAN port membership is duplicated in
+          BOTH places (per-interface `untagged vlan N` AND per-VLAN
+          `untagged <port-list>`); reconcile carefully. The header
+          comment line (`; JL322A Configuration Editor; Created on
+          release #WC.16.10.0021`) reveals SKU + firmware and is a
+          handy sanity check during version detection.
+        config_required: ""
+        notes: |
+          For very large chassis switches (5400R fully populated)
+          the output can run thousands of lines; budget Netmiko
+          read timeouts accordingly.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: INTERFACE_STATS
+    description: "Detailed interface counters / state"
+    versions:
+      - applies_to: "*"
+        cli: "show interfaces {interface}"
+        sample_output: |
+           Status and Counters - Port Counters for port 24
+
+             Name  : Access-Edge-24
+             MAC Address      : 6cf37f-aabbcc
+             Link Status      : Up
+             Totals (Since boot or last clear) :
+              Bytes Rx        : 1,234,567,890   Bytes Tx        : 987,654,321
+              Unicast Rx      : 12,345,678      Unicast Tx      : 9,876,543
+              Bcast/Mcast Rx  : 4,567           Bcast/Mcast Tx  : 1,234
+             Errors (Since boot or last clear) :
+              FCS Rx          : 0               Drops Tx        : 0
+              Alignment Rx    : 0               Collisions Tx   : 0
+              Runts Rx        : 0               Late Colln Tx   : 0
+              Giants Rx       : 0               Excessive Colln : 0
+              Total Rx Errors : 0               Deferred Tx     : 0
+             Others :
+              Discard Rx      : 0               Out Queue Len   : 0
+              Unknown Protos  : 0
+             Rates (5 minute weighted average) :
+              Total Rx  (bps) : 1,234,567       Total Tx  (bps) : 987,654
+              Unicast Rx (Pkts/sec) : 1,234     Unicast Tx (Pkts/sec) : 987
+              B/Mcast Rx (Pkts/sec) : 12        B/Mcast Tx (Pkts/sec) : 3
+              Utilization Rx :    1.23 %        Utilization Tx :    0.98 %
+        parser_notes: |
+          Two-column-pair layout: counters are emitted as
+          `<label-left> : <value-left>   <label-right> : <value-right>`
+          on the same line. Values include grouping commas
+          (`1,234,567,890`) — strip before integer conversion.
+          The `Link Status` line is the cheapest authoritative
+          up/down indicator; `show interfaces brief` is a faster
+          alternative when only port state is needed.
+        config_required: ""
+        notes: |
+          For inventory-style port census across all ports in one
+          shot, prefer `show interfaces brief` (8-column table:
+          Port, Type, Intrusion Alert, Enabled, Status, Mode, MDI
+          Mode, Flow Ctrl, Bcast Limit) — much cheaper to parse
+          than per-port `show interfaces`.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: CIVIC_LOCATION
+    description: "LLDP-MED civic location definitions"
+    versions:
+      - applies_to: "*"
+        cli: "NOT_SUPPORTED"
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Legacy ProCurve / ArubaOS-Switch does NOT support
+          LLDP-MED civic location TLV configuration. LLDP-MED on
+          this platform is limited to the network-policy TLV
+          (voice-VLAN advertisement to IP phones) and the
+          power-via-MDI TLV — civic / ELIN E911 location TLVs are
+          an AOS-CX-and-newer capability. Compliance flows that
+          depend on civic-location reporting must either skip this
+          vendor or fall back to operator-supplied static metadata.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: VLAN_LIST
+    description: "List all VLANs configured on the switch"
+    versions:
+      - applies_to: "*"
+        cli: "show vlans"
+        sample_output: |
+           Status and Counters - VLAN Information
+
+            Maximum VLANs to support : 256
+            Primary VLAN : DEFAULT_VLAN
+            Management VLAN :
+
+             VLAN ID Name                            | Status     Voice Jumbo
+             ------- ------------------------------- + ---------- ----- -----
+             1       DEFAULT_VLAN                    | Port-based No    No
+             10      Data                            | Port-based No    No
+             20      Voice                           | Port-based Yes   No
+             100     Guest                           | Port-based No    No
+             999     Native-Black-Hole               | Port-based No    No
+        parser_notes: |
+          Header has 3 metadata lines (`Maximum VLANs`, `Primary
+          VLAN`, `Management VLAN`) + blank line + 5-column table.
+          NOTE the command spelling: plural `vlans` — `show vlan`
+          (singular, no s) takes a VLAN-id argument and returns
+          per-VLAN detail; plural form is the listing. This is the
+          inverse of Cisco's `show vlan brief`.
+        config_required: ""
+        notes: |
+          For per-VLAN port membership detail use
+          `show vlan <vid>` (e.g. `show vlan 20`) which lists
+          tagged/untagged port membership in a per-port table.
+          For 802.1Q name vs ID matching this is the canonical
+          listing.
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        # Aruba's proprietary REST, NOT IETF RESTCONF.
+        # Recorded here for completeness; see protocol_capabilities.rest_api
+        # for the actual protocol family.
+        url_path: "/rest/v3/vlans"
+        firmware_required: ">=16.04"
+      gnmi: null
+
+  - type: SVI_CONFIG
+    description: "Show running-config for a VLAN's L3 (SVI) section"
+    versions:
+      - applies_to: "*"
+        cli: "show running-config vlan {vlan_id}"
+        sample_output: |
+           Running configuration:
+
+           vlan 20
+              name "Voice"
+              untagged 1-24
+              ip address 10.20.0.1 255.255.255.0
+              ip helper-address 10.0.0.53
+              ip igmp
+              voice
+              exit
+        parser_notes: |
+          ProCurve has no separate `interface vlan <id>` notion in
+          running-config — L3 settings are emitted INSIDE the
+          `vlan <id>` stanza alongside L2 settings (`tagged` /
+          `untagged` port lists, `name`). The `ip address` line is
+          the SVI's L3 config; `ip helper-address` is the
+          DHCP-relay equivalent of Cisco's `ip helper-address`
+          (same syntax, fortunately). `voice` flag enables
+          LLDP-MED voice-VLAN advertisement.
+        config_required: ""
+        notes: |
+          Only present on switches with routing enabled (`ip
+          routing`); pure L2 ProCurve deployments will have at
+          most one SVI on the management VLAN.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: STP_VLAN_LIST
+    description: "List of VLANs with spanning-tree participating"
+    versions:
+      - applies_to: "*"
+        cli: "show spanning-tree"
+        sample_output: |
+           Multiple Spanning Tree (MST) Information
+
+             STP Enabled   : Yes
+             Force Version : MSTP-operation
+             IST Mapped VLANs : 1-4094
+             Switch MAC Address : 6cf37f-001122
+             Switch Priority    : 32768
+             Hello Time     : 2     Forward Delay : 15    Max Age : 20
+             Tx Hold Count  : 6     Max Hops      : 20
+             Topology Change Count       : 3
+             Time Since Last Change      : 0 days
+        parser_notes: |
+          ArubaOS-Switch defaults to MSTP (802.1s); per-VLAN STP
+          (PVST/RPVST) is NOT the default and is rarely enabled —
+          the legacy ProCurve line predates RPVST+ as an Aruba
+          feature. The "list of VLANs with STP enabled" abstract
+          maps awkwardly: under MSTP, all VLANs are mapped to the
+          IST instance by default (the `IST Mapped VLANs : 1-4094`
+          line), and per-VLAN-instance state is queried with
+          `show spanning-tree mst-config` and
+          `show spanning-tree instance <id>`.
+        config_required: ""
+        notes: |
+          For the abstract "is this VLAN STP-enabled?" question on
+          ProCurve, the practical answer is "yes if STP is enabled
+          globally and the VLAN exists" (since MSTP IST covers all
+          VLANs by default). Catalog consumers that hard-coded a
+          Cisco-style PVST per-VLAN list should treat ProCurve as
+          a special case.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: HARDWARE_IDENTITY
+    description: "Stable hardware identity (chassis serial, base MAC, stack members)"
+    versions:
+      - applies_to: "*"
+        cli: |
+          show system information
+          show modules
+        sample_output: |
+           Status and Counters - General System Information
+
+             System Name        : venue-edge-01
+             System Contact     :
+             System Location    :
+             MAC Age Time (sec) : 300
+             Time Zone          : 0
+             Daylight Time Rule : None
+
+             Software revision  : WC.16.10.0021
+             Base MAC Addr      : 6cf37f-001122
+             Serial Number      : CN12345ABC
+             Up Time            : 42 days
+             CPU Util (%)       : 5
+             Memory       - Total      : 524,288,000
+                            Free       : 312,456,000
+             ROM Version        : WC.16.01.0004
+        parser_notes: |
+          Composite read: `show system information` gives the
+          chassis-level identity (Base MAC, Serial Number,
+          Software revision = current firmware). For stacked /
+          VSF deployments (3810M, 5400R), follow up with
+          `show modules` to enumerate per-member serial numbers
+          and SKU codes.
+        config_required: ""
+        notes: |
+          The `Software revision` field's prefix encodes the
+          platform family (`WC.` = 2920/2930F, `KB.` = 5400R/zl2,
+          `YA.` / `YB.` = 2530, etc.). Useful for cross-checking
+          SKU vs firmware-train compatibility.
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "/rest/v1/system/status"
+        firmware_required: ">=16.04"
+      gnmi: null
+
+  - type: HOSTNAME
+    description: "Configured hostname"
+    versions:
+      - applies_to: "*"
+        cli: "show running-config | include hostname"
+        sample_output: |
+          hostname "venue-edge-01"
+        parser_notes: |
+          Hostname is also visible in the Netmiko prompt
+          (`venue-edge-01# `) — when running through Netmiko, read
+          it from the prompt; this CLI is a fallback. ProCurve
+          quotes the hostname in running-config; the prompt does
+          not.
+        config_required: ""
+        notes: |
+          `show system information` also exposes the hostname under
+          `System Name`; either source is acceptable.
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "/rest/v1/system"
+        firmware_required: ">=16.04"
+      gnmi: null
+
+  - type: VERSION
+    description: "Firmware version string"
+    versions:
+      - applies_to: "*"
+        cli: "show version"
+        sample_output: |
+          Image stamp:    /ws/swbuildm/rel_yorkton_qaoff/code/build/btm(swbuildm_rel_yorkton_qaoff_rel_yorkton)
+                          Apr  3 2024 09:15:42
+                          WC.16.10.0021
+                          410
+          Boot Image:     Primary
+        parser_notes: |
+          Version string is on its own line, following the
+          build-time line. Format `<2-letter-prefix>.<train>.<build>`
+          (e.g. `WC.16.10.0021`). The 2-letter prefix is the
+          platform family — preserve it; some downstream version
+          comparisons key on family.
+          ALTERNATIVE: `show system information` also exposes the
+          version under `Software revision` and is easier to parse
+          (clean key:value line) — prefer that for programmatic
+          version detection.
+        config_required: ""
+        notes: |
+          CRITICAL for catalog version-aware selection. Since
+          ProCurve has no NETCONF / gNMI capabilities-exchange
+          equivalent, version detection is CLI-only.
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "/rest/v1/system/status"
+        firmware_required: ">=16.04"
+      gnmi: null
+
+  # ─── Port-level writes ──────────────────────────────────────────
+  - type: PORT_SHUTDOWN
+    description: "Administratively disable an interface"
+    versions:
+      - applies_to: "*"
+        cli: |
+          configure terminal
+          interface {interface}
+          disable
+          exit
+          exit
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          ProCurve uses `disable` / `enable` inside the `interface`
+          context, NOT Cisco's `shutdown` / `no shutdown`. This is
+          the single biggest CLI footgun when crossing from a
+          Cisco handler. Setting `disable` on a member port of a
+          Trunk (LAG) will disable just that member — the parent
+          Trk continues to forward on remaining live members.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: PORT_NO_SHUTDOWN
+    description: "Administratively enable an interface"
+    versions:
+      - applies_to: "*"
+        cli: |
+          configure terminal
+          interface {interface}
+          enable
+          exit
+          exit
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Counterpart to PORT_SHUTDOWN's `disable`. Note this is
+          NOT the same `enable` as the privileged-exec elevation —
+          context-dependent: at config-if level, `enable` means
+          un-disable the interface.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: PORT_VLAN_ASSIGN
+    description: "Set the access (untagged) VLAN of a port"
+    versions:
+      - applies_to: "*"
+        cli: |
+          configure terminal
+          vlan {vlan_id}
+          untagged {interface}
+          exit
+          exit
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          ProCurve VLAN-assign semantics are INVERTED from Cisco /
+          AOS-CX: you operate from the `vlan <id>` config context
+          and add/remove ports to that VLAN, rather than from the
+          `interface` context applying a VLAN to the port.
+          A port can only be `untagged` in ONE VLAN at a time;
+          assigning `untagged <port>` in a new VLAN automatically
+          removes the untagged membership from the previous VLAN
+          (the switch handles the swap). For tagged uplinks use
+          `tagged {interface}` from the same context. Pre-creating
+          the target VLAN (see VLAN_CREATE) is required — the
+          VLAN must exist before you can `untagged` a port into
+          it. NetCaster should call VLAN_CREATE first if uncertain.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: PORT_POE_OFF
+    description: "Disable PoE on a port"
+    versions:
+      - applies_to: "*"
+        cli: |
+          configure terminal
+          interface {interface}
+          no power-over-ethernet
+          exit
+          exit
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          PoE syntax incidentally matches AOS-CX (which inherited
+          it). Cannot be disabled per-port if Quick PoE is enabled
+          globally; surface that error rather than retrying. A
+          `no power-over-ethernet` PoE OFF persists the PSE line
+          off — to power-cycle without persistent disable, do
+          off-then-on with a brief delay (engine-side).
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: PORT_POE_ON
+    description: "Enable PoE on a port"
+    versions:
+      - applies_to: "*"
+        cli: |
+          configure terminal
+          interface {interface}
+          power-over-ethernet
+          exit
+          exit
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Re-enables PoE and restores the previously configured
+          priority setting (low/high/critical). PoE is enabled by
+          default on PoE-capable ports — this command is meaningful
+          chiefly as the recovery counterpart to PORT_POE_OFF.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: PORT_POLICY_PUSH
+    description: "Composite access-port policy (edge port hardening + description)"
+    versions:
+      - applies_to: "*"
+        cli: |
+          configure terminal
+          interface {interface}
+          name "{description}"
+          spanning-tree admin-edge-port
+          spanning-tree bpdu-protection
+          no broadcast-limit
+          exit
+          exit
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          ProCurve composition for a hardened access port:
+            - `name "..."`           — port description (Cisco's
+              `description ...`). Quote the value.
+            - `spanning-tree admin-edge-port`
+                                     — equivalent to Cisco's
+              `spanning-tree portfast`. Skips listening/learning,
+              transitions immediately to forwarding.
+            - `spanning-tree bpdu-protection`
+                                     — equivalent to Cisco's
+              `spanning-tree bpduguard enable`. Disables the port
+              if a BPDU is received.
+            - Storm control on ProCurve is `broadcast-limit <pct>`
+              at the interface level; clearing with
+              `no broadcast-limit` removes any prior limit. Set a
+              numeric limit (e.g. `broadcast-limit 5` for 5%) if
+              policy requires.
+          NetCaster's port-policy-push composer must emit these
+          ProCurve verbs, NOT the Cisco verbs. There is no single
+          atomic "apply policy template" command — it's a
+          multi-line config block.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  # ─── Provisioning writes ────────────────────────────────────────
+  - type: VLAN_CREATE
+    description: "Create a VLAN definition (vid + optional name)"
+    versions:
+      - applies_to: "*"
+        cli: |
+          configure terminal
+          vlan {vlan_id}
+          name "{name}"
+          exit
+          exit
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          The `vlan {vlan_id}` command both CREATES the VLAN if it
+          doesn't exist and ENTERS its config context if it does —
+          it is idempotent and safe to call on an existing VLAN.
+          `name "..."` is optional; quote the value (whitespace
+          allowed inside quotes). Default name when unspecified is
+          `VLAN<id>` (e.g. `VLAN100`). NOTE: `name` overwrites any
+          previous name silently.
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "/rest/v3/vlans"     # POST with {vlan_id, name}
+        firmware_required: ">=16.04"
+      gnmi: null
+
+  - type: SVI_CREATE
+    description: "Create an SVI (L3 interface) for a VLAN"
+    versions:
+      - applies_to: "*"
+        cli: |
+          configure terminal
+          ip routing
+          vlan {vlan_id}
+          ip address {ip_address} {mask}
+          ip helper-address {dhcp_relay}
+          ip igmp
+          exit
+          exit
+        sample_output: ""
+        parser_notes: ""
+        config_required: |
+          ip routing
+        notes: |
+          `ip routing` must be enabled globally before any SVI can
+          actually route — many access-layer ProCurves ship L2-only
+          and the operator must opt in. The command is idempotent.
+          The SVI is configured FROM INSIDE the `vlan <id>` config
+          context, NOT from a separate `interface vlan <id>` block
+          (that's Cisco / AOS-CX). The mask is in dotted-decimal
+          form (`255.255.255.0`) — there is NO Cisco-style `/24`
+          shorthand on legacy ProCurve. `ip helper-address` is the
+          DHCP-relay equivalent (multiple addresses allowed,
+          repeat the line). `ip igmp` enables IGMP snooping for
+          the VLAN. PIM is NOT supported on most ProCurve
+          platforms; if multicast routing is required, this is the
+          wrong vendor.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  - type: STP_VLAN_ENABLE
+    description: "Enable spanning-tree for a VLAN"
+    versions:
+      - applies_to: "*"
+        cli: |
+          configure terminal
+          spanning-tree
+          exit
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          ProCurve uses MSTP (802.1s) by default with a single IST
+          covering ALL VLANs — there is no per-VLAN STP enable
+          analogous to Cisco's `spanning-tree vlan <id>` PVST
+          command. The closest equivalent is the global
+          `spanning-tree` toggle; the per-VLAN abstract maps to
+          "ensure global STP is on, the VLAN exists, and the VLAN
+          is mapped to an MSTI instance" (default mapping is to
+          IST/instance 0). To map a VLAN to a specific MST
+          instance:
+            spanning-tree config-name "REGION1"
+            spanning-tree config-revision 1
+            spanning-tree instance {mst_id} vlan {vlan_id}
+          but most NetCaster compliance flows only need the global
+          enable; that's what this entry emits.
+    protocol_alternatives:
+      netconf: null
+      restconf: null
+      gnmi: null
+
+  # ─── Persistence ────────────────────────────────────────────────
+  - type: SAVE_CONFIG
+    description: "Persist running-config to flash"
+    versions:
+      - applies_to: "*"
+        cli: "write memory"
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          `write memory` (alias `wr mem`) commits running-config
+          to startup-config in flash. ProCurve does NOT accept
+          Cisco's `copy running-config startup-config` — that
+          syntax errors out. The command is non-interactive and
+          returns immediately; no `[yes/no]` prompt to handle.
+          Some firmware also accepts `write-memory` (hyphenated)
+          but the canonical form is the two-token `write memory`.
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        # POST /rest/v1/cli or /rest/v1/system with appropriate body;
+        # there is no clean "save" verb in early REST revisions —
+        # operators commonly POST the literal CLI string.
+        url_path: "/rest/v1/cli"
+        firmware_required: ">=16.04"
+      gnmi: null

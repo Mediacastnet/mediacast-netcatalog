@@ -1,0 +1,1001 @@
+# Aruba AOS-CX vendor command catalog
+# Mirrors netcaster_engine/platforms/aruba_aoscx.py and adds firmware-version awareness.
+# Treat 10.10 as the practical baseline; the existing handler is validated against
+# the 6300/6400/8320/8325/8400/10000 series running 10.10–10.13.
+
+# ── Vendor identity ────────────────────────────────────────────────
+vendor: aruba_aoscx
+display_name: "Aruba AOS-CX"
+manufacturer: "Hewlett Packard Enterprise (HPE Aruba Networking)"
+product_family: "CX 4100i / 5420 / 6000 / 6100 / 6200 / 6300 / 6400 / 8100 / 8320 / 8325 / 8360 / 9300 / 10000"
+notes: |
+  Modern Aruba CX line — distinct from the legacy ProCurve / ArubaOS-Switch family
+  which lives in a separate catalog (`hpe-procurve.yaml`). Interface naming is
+  `member/slot/port` (e.g., `1/1/24`); breakout ports add a `:N` suffix
+  (`1/1/2:1`). LAGs are `lagN`. SVIs are `vlanN` (no separator) when used as
+  an interface name in `show running-config interface`, but `interface vlan N`
+  in config mode (the parsers tolerate both spellings).
+
+  Programmability story (relevant to ADR-0018 / hybrid protocol read path):
+    - **REST API** is the primary programmatic interface. Auto-generated from
+      AOS-CX's internal data model; v10.04 introduced the structured API in
+      AOS-CX 10.04. v10.04 + v10.08–v10.16 are concurrently supported on
+      modern firmware. Legacy `rest/v1` was deprecated at 10.09 and removed
+      at 10.12 — do not target v1.
+    - **NETCONF** is NOT a first-class interface on AOS-CX. The
+      `aruba/aoscx-yang` repo publishes YANG models, but NETCONF transport
+      coverage is sparse and version-specific; the official
+      device-programmability story is "use REST or pyaoscx". Treat NETCONF
+      as effectively unsupported for this catalog.
+    - **gNMI** lands in AOS-CX 10.17 (announced/released early 2026 on
+      6300/6400/8xxx/9300/10000 monitoring docs). Subscription-mode
+      streaming telemetry against a subset of OpenConfig models. Pre-10.17,
+      no gNMI.
+
+  This makes AOS-CX the weakest leg of the protocol-based-I/O story relative
+  to Cisco IOS-XE (NETCONF/RESTCONF/gNMI all available since 16.6/16.10) and
+  NX-OS (NETCONF since 7.x, gNMI since 9.3). The catalog reflects that
+  honestly — most reads list REST as the only viable alternative, and gNMI is
+  gated on `>=10.17`.
+
+# ── Documentation sources ──────────────────────────────────────────
+sources:
+  - title: "AOS-CX 10.13 Command-Line Interface Guide — 6300, 6400 Switch Series"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.13/PDF/cli_6300-6400.pdf"
+    accessed: "2026-04-28"
+  - title: "AOS-CX 10.13 Command-Line Interface Guide — 8320, 8325 Switch Series"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.13/PDF/cli_832x.pdf"
+    accessed: "2026-04-28"
+  - title: "AOS-CX 10.13 Command-Line Interface Guide — 8100, 8360 Switch Series"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.13/PDF/cli_8100-8360.pdf"
+    accessed: "2026-04-28"
+  - title: "AOS-CX 10.13 Command-Line Interface Guide — 6000, 6100 Switch Series"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.13/PDF/cli_6000-6100.pdf"
+    accessed: "2026-04-28"
+  - title: "AOS-CX 10.13 REST v10.0x API Guide — All AOS-CX Series Switches"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.13/PDF/rest_v10-0x.pdf"
+    accessed: "2026-04-28"
+  - title: "AOS-CX REST API reference summary (10.13)"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.13/HTML/rest_v10-0x/Content/Chp_REST_ref/aru-cx-res-api-ref-sum-10.htm"
+    accessed: "2026-04-28"
+  - title: "AOS-CX 10.17 — gRPC network management interface (gNMI)"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.17/HTML/monitoring_6300-6400/Content/Chp_gNMI/gnmi.htm"
+    accessed: "2026-04-28"
+  - title: "AOS-CX 10.17 — Supported OpenConfig models for gNMI"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.17/HTML/monitoring_6300-6400/Content/Chp_gNMI/gnmi_ope_mod.htm"
+    accessed: "2026-04-28"
+  - title: "Aruba Developer Hub — AOS-CX REST API versioning"
+    url: "https://developer.arubanetworks.com/aoscx/docs/api-versioning"
+    accessed: "2026-04-28"
+  - title: "aruba/aoscx-yang — YANG model repo for AOS-CX"
+    url: "https://github.com/aruba/aoscx-yang"
+    accessed: "2026-04-28"
+  - title: "show arp (AOS-CX CLI Bank)"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-CX/AOSCX-CLI-Bank/cli_5420/Content/Chp_ARP/ARP_cmds/sho-arp.htm"
+    accessed: "2026-04-28"
+  - title: "show mac-address-table (AOS-CX 10.13)"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.13/HTML/l2_bridging_8400/Content/Chp_mac/mac_cmds/sho-mac-add-tab-10.htm"
+    accessed: "2026-04-28"
+  - title: "show vlan (AOS-CX 10.13)"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.13/HTML/l2_bridging_8400/Content/Chp_vlans/vie-vla-cnf-inf.htm"
+    accessed: "2026-04-28"
+  - title: "show lldp neighbor-info detail (AOS-CX 10.13)"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.13/HTML/fundamentals_8400/Content/Chp_Dev_disc/LLDP_cmds/sho-lld-nei-inf-det-10.htm"
+    accessed: "2026-04-28"
+  - title: "show interface (AOS-CX 10.13)"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.13/HTML/monitoring_4100i-6000-6100/Content/Chp_IfaceCfg/Iface_cmds/sho-int-10.htm"
+    accessed: "2026-04-28"
+  - title: "show lag (AOS-CX 10.15)"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.15/HTML/link_aggregation/Content/Chp_LAG/LACP_LAG_cmds/sho-lag.htm"
+    accessed: "2026-04-28"
+  - title: "show spanning-tree vlan (AOS-CX CLI Bank, 6000/6100)"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-CX/AOSCX-CLI-Bank/cli_6000-6100/Content/Chp_stp/rpvst_cmds/sho-spa-tre-vla-10.htm"
+    accessed: "2026-04-28"
+  - title: "show system (AOS-CX 10.07)"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.07/HTML/5200-7851/Content/SysHW_cmds/sho-sys-10.htm"
+    accessed: "2026-04-28"
+  - title: "show version (AOS-CX 10.14)"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.14/HTML/fundamentals_6200/Content/SysHW_cmds/sho-ver-10.htm"
+    accessed: "2026-04-28"
+  - title: "active-gateway (VSX) command reference"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-CX/AOSCX-CLI-Bank/cli_832x/Content/VSX_cmds/act-gat-10.htm"
+    accessed: "2026-04-28"
+  - title: "lldp med-location civic-address (AOS-CX 10.05)"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.05/HTML/5200-7284/GUID-1BAD72AF-4477-46D7-B5E5-BCC87076FE67.html"
+    accessed: "2026-04-28"
+  - title: "write memory / copy running-config startup-config (AOS-CX)"
+    url: "https://arubanetworking.hpe.com/techdocs/AOS-CX/AOSCX-CLI-Bank/cli_8400/Content/Chp_Cfg_FW_mgt/Chk_cmds/wri-mem.htm"
+    accessed: "2026-04-28"
+  - title: "Existing handler: netcaster_engine/platforms/aruba_aoscx.py (NetCaster v2.1.0)"
+    url: "internal://netcaster_engine/platforms/aruba_aoscx.py"
+    accessed: "2026-04-28"
+
+# ── Protocol capabilities ──────────────────────────────────────────
+protocol_capabilities:
+  netconf:
+    introduced_in: "n/a"
+    notes: |
+      AOS-CX does not ship a first-class NETCONF transport. YANG models exist
+      in the `aruba/aoscx-yang` GitHub repo (organized by AOS-CX release), but
+      the supported programmatic surface is REST API + pyaoscx. Treat NETCONF
+      as not supported on AOS-CX; per-command `protocol_alternatives.netconf`
+      is `null` throughout this file.
+  restconf:
+    introduced_in: "10.04"
+    notes: |
+      AOS-CX's REST API is auto-generated from the internal data model and
+      conceptually similar to RESTCONF (resource/sub-resource paths, JSON
+      payloads), but it does NOT implement the IETF RESTCONF spec. We use
+      the `restconf` slot to capture the REST URL paths since the schema's
+      `url_path` field is the natural fit.
+
+      Versioning: v10.04 introduced; v10.08 through v10.16.x supported on
+      modern firmware. Legacy `rest/v1` deprecated 10.09, removed 10.12 —
+      do not target v1. Path prefix is `/rest/v10.13/...` (or `latest`).
+
+      Auth: cookie-based session (POST /rest/v10.13/login) + CSRF header.
+      HTTPS only. Requires `https-server rest access-mode read-write` (or
+      read-only) in running-config to enable.
+  gnmi:
+    introduced_in: "10.17"
+    notes: |
+      AOS-CX gNMI server lands in 10.17 on the 6300/6400/8100/8320/8325/8360/
+      9300/10000 series; subscription-mode streaming telemetry against a
+      curated subset of OpenConfig models (openconfig-interfaces,
+      openconfig-system, openconfig-platform, openconfig-lldp, etc.).
+      Pre-10.17 firmware has no gNMI support — `protocol_alternatives.gnmi`
+      is `null` for any version range below 10.17.
+
+# ── Commands ───────────────────────────────────────────────────────
+commands:
+
+  # ─── Reads ────────────────────────────────────────────────────────
+
+  - type: ARP_TABLE
+    description: "Display the IPv4 ARP table"
+    versions:
+      - applies_to: ">=10.04"
+        cli: "show arp"
+        sample_output: |
+          IPv4 Address     MAC                Port       Physical Port  State
+          -----------------------------------------------------------------------
+          192.168.1.2      00:50:56:96:7b:e0  vlan10     1/1/29         stale
+          192.168.1.3      00:50:56:96:7b:ac  vlan10     1/1/1          reachable
+          10.1.1.1         00:1a:2b:3c:4d:5e  vlan10     1/1/1          reachable
+        parser_notes: |
+          5-column space-separated. MAC is colon-separated lowercase
+          (xx:xx:xx:xx:xx:xx). The "Port" column is the SVI/L3 interface
+          (`vlanN`); "Physical Port" is the resolved L2 egress interface.
+          State values: `reachable`, `stale`, `permanent`, `incomplete`.
+          Existing parser (`parse_arp_table`) only extracts (IP, MAC) pairs
+          and ignores Port/Physical Port/State columns.
+        config_required: ""
+        notes: |
+          For multi-VRF deployments, use `show arp vrf <NAME>` or
+          `show arp all-vrfs` — not yet wired into the engine.
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "/rest/v10.13/system/vrfs/{vrf}/neighbors?depth=2"
+        firmware_required: ">=10.04"
+      gnmi: null
+
+  - type: MAC_TABLE
+    description: "Display the MAC address (forwarding) table"
+    versions:
+      - applies_to: ">=10.04"
+        cli: "show mac-address-table"
+        sample_output: |
+          MAC age-time            : 300 seconds
+          Number of MAC addresses : 5
+
+          MAC Address          VLAN     Type      Port
+          --------------------------------------------------
+          00:00:00:00:00:05    1        dynamic   1/1/2
+          00:1a:2b:3c:4d:5e    10       dynamic   1/1/1
+          aa:bb:cc:dd:ee:ff    20       static    1/1/24
+        parser_notes: |
+          4-column. MAC is colon-separated. Port column may be a physical
+          interface (`1/1/N`), a LAG (`lagN`), a VXLAN tunnel
+          (`vxlan1(...)`), or an SVI. The existing `parse_mac_table` matches
+          only `\d+/\d+/\d+`-style ports, lagN, and similar; vxlan rows
+          are dropped on purpose (they aren't useful for endpoint lookup).
+          Type values: `dynamic`, `static`, `hsc` (hardware self-cache).
+        config_required: ""
+        notes: |
+          Some 10.08+ firmware adds a "From" column (dynamic/learned-by)
+          to the right of "Port"; the existing greedy regex tolerates it.
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "/rest/v10.13/system/vlans/*/macs?depth=2"
+        firmware_required: ">=10.08"
+      gnmi: null
+
+  - type: NEIGHBOR_DETAIL
+    description: "Vendor-preferred neighbor detail (LLDP on AOS-CX)"
+    versions:
+      - applies_to: ">=10.04"
+        cli: "show lldp neighbor-info detail"
+        sample_output: |
+          Port                           : 1/1/2:1
+          Neighbor Entries               : 1
+          Neighbor Entries Deleted       : 0
+          Neighbor Entries Dropped       : 0
+          Neighbor Entries Age-out       : 0
+
+          Neighbor Chassis-Name          : SL203-48
+          Neighbor Chassis-Description   : Aruba JL635A 10.10.1070
+          Neighbor Chassis-ID            : 90:20:c2:24:60:00
+          Chassis Capabilities Available : Bridge, Router
+          Chassis Capabilities Enabled   : Bridge, Router
+          Neighbor Management-Address    : 10.10.0.48
+          Neighbor System-Name           : SL203-48
+          Neighbor System-Description    : Aruba R8S90A FL.10.10.1070
+          Neighbor Port-ID               : 1/1/51
+          Neighbor Port-Desc             : uplink
+          TTL                            : 120
+        parser_notes: |
+          Blocks separated by lines of >=20 dashes. Per-block fields are
+          `Key : Value` (whitespace before colon varies). The existing
+          `parse_neighbors` keys off:
+            - `Port` for the local port (note: this is the local port, NOT
+              "Local Port" — easy mismatch with Cisco LLDP output).
+            - `Neighbor System-Name` for hostname.
+            - `Neighbor Management-Address` for IP.
+            - `Neighbor Port-ID` for the remote port.
+            - `Neighbor System-Description` (truncated to 80 chars) for platform.
+          A neighbor block must have System-Name + Management-Address to be
+          retained.
+        config_required: |
+          lldp run                       # Required to advertise + receive LLDP
+          lldp port-description-tlv      # Optional but commonly enabled
+        notes: |
+          AOS-CX runs LLDP natively; CDP support exists but is OFF by default
+          and not used by the existing handler. Breakout ports show as
+          `1/1/2:1` (the `:N` suffix is the breakout child).
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "/rest/v10.13/system/interfaces/*/lldp_neighbors?depth=3"
+        firmware_required: ">=10.08"
+      gnmi:
+        path: "/lldp/interfaces/interface[name=*]/neighbors/neighbor/state"
+        firmware_required: ">=10.17"
+
+  - type: LLDP_DETAIL
+    description: "LLDP neighbor detail (same as NEIGHBOR_DETAIL on AOS-CX)"
+    versions:
+      - applies_to: ">=10.04"
+        cli: "show lldp neighbor-info detail"
+        sample_output: |
+          (See NEIGHBOR_DETAIL — identical command on AOS-CX since LLDP
+          is the primary neighbor protocol.)
+        parser_notes: |
+          Identical to NEIGHBOR_DETAIL. Kept as a separate type for symmetry
+          with Cisco platforms where CDP and LLDP are distinct commands.
+        config_required: "lldp run"
+        notes: |
+          On AOS-CX the existing handler does not implement a separate
+          `get_lldp_command` (it inherits the LLDP-as-primary path). If the
+          engine ever needs both protocols, this entry duplicates
+          NEIGHBOR_DETAIL deliberately.
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "/rest/v10.13/system/interfaces/*/lldp_neighbors?depth=3"
+        firmware_required: ">=10.08"
+      gnmi:
+        path: "/lldp/interfaces/interface[name=*]/neighbors/neighbor/state"
+        firmware_required: ">=10.17"
+
+  - type: PORT_CHANNEL_MEMBERS
+    description: "Map LAG (port-channel) interfaces to physical members"
+    versions:
+      - applies_to: ">=10.04"
+        cli: "show lag"
+        sample_output: |
+          System-ID          : 90:20:c2:24:60:00
+          System-priority    : 65534
+
+          Aggregate lag1 is up
+           Admin state is up
+           Aggregated-interfaces       : 1/1/1 1/1/2 1/1/3
+           Aggregation-key             : 1
+           Aggregate mode              : active
+           Hash                        : l3-src-dst
+           LACP rate                   : slow
+           Speed                       : 1000 Mb/s
+           Mode                        : trunk
+
+          Aggregate lag127 is up
+           Admin state is up
+           Aggregated-interfaces       : 1/1/27 1/1/28
+           Aggregation-key             : 127
+        parser_notes: |
+          Block-per-LAG separated by `Aggregate lagN is ...` headers.
+          Members on the `Aggregated-interfaces` line are space-separated.
+          Members may be physical (`1/1/27`) OR breakout
+          (`1/1/2:1`). Existing `parse_port_channel_members` filters
+          members through `\d+/\d+/\d+` (matches both forms — `:N` is part
+          of the trailing octet group). Empty member lists are skipped.
+        config_required: ""
+        notes: |
+          AOS-CX uses `lagN` consistently. Some Cisco-trained operators try
+          `show port-channel summary` — that's NX-OS, not AOS-CX, and it
+          fails on CX silently (the engine would just get an empty parse).
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "/rest/v10.13/system/ports?filter=interfaces&depth=3"
+        firmware_required: ">=10.08"
+      gnmi:
+        path: "/interfaces/interface[name=lag*]/aggregation/state"
+        firmware_required: ">=10.17"
+
+  - type: INTERFACE_CONFIG
+    description: "Running-config for a single interface"
+    versions:
+      - applies_to: ">=10.04"
+        cli: "show running-config interface {interface}"
+        sample_output: |
+          interface 1/1/24
+              no shutdown
+              description AP-203
+              no routing
+              vlan access 21
+              spanning-tree bpdu-guard
+              spanning-tree port-type admin-edge
+              rate-limit broadcast 10000 kbps
+              lldp med-location civic-location "Lobby East"
+        parser_notes: |
+          Indented sub-stanzas under `interface <name>`. Existing
+          `parse_interface_configs` searches for:
+            - `spanning-tree port-type admin-edge` → portfast equivalent.
+            - `spanning-tree bpdu-guard` → BPDU guard.
+            - `rate-limit broadcast N percent` OR `... N kbps` →
+              storm control.
+            - `description <text>` (multiline-anchored).
+            - `lldp med-location civic-location "<name>"` → civic location.
+          Interface name on header line is whatever AOS-CX printed
+          (`1/1/24`, `lag1`, `vlan10`).
+        config_required: ""
+        notes: ""
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "/rest/v10.13/system/interfaces/{interface}?depth=3&selector=writable"
+        firmware_required: ">=10.04"
+      gnmi: null
+
+  - type: INTERFACE_CONFIG_BULK
+    description: "All-at-once interface running-config (faster than per-interface)"
+    versions:
+      - applies_to: ">=10.04"
+        cli: "show running-config interface"
+        sample_output: |
+          interface 1/1/1
+              no shutdown
+              vlan access 1
+          interface 1/1/24
+              no shutdown
+              description AP-203
+              vlan access 21
+              spanning-tree bpdu-guard
+              spanning-tree port-type admin-edge
+          interface lag1
+              no shutdown
+              vlan trunk native 1
+              vlan trunk allowed all
+              lacp mode active
+        parser_notes: |
+          Existing `parse_interface_configs` splits on
+          `(?=^interface\s)` and re-uses the per-interface parser. The
+          interface-name suffix in the dict gets a normalized alias too
+          (no abbreviation expansion needed; AOS-CX names are canonical).
+        config_required: ""
+        notes: |
+          On large 8400/10000 chassis with hundreds of interfaces this
+          single-shot is dramatically faster than N separate
+          `show running-config interface X` calls.
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "/rest/v10.13/system/interfaces?depth=3&selector=writable"
+        firmware_required: ">=10.04"
+      gnmi: null
+
+  - type: INTERFACE_STATS
+    description: "Detailed counters / state for one interface"
+    versions:
+      - applies_to: ">=10.04"
+        cli: "show interface {interface}"
+        sample_output: |
+          Interface 1/1/1 is up
+           Admin state is up
+           Link state: up for 5d 12h 03m (since Mon Apr 21 09:14:18 UTC 2026)
+           Link transitions: 4
+           Description : AP-01
+           Hardware: Ethernet, MAC Address: 90:20:c2:24:60:18
+           MTU 1500
+           Type 1000BASE-T
+           Speed 1000 Mb/s
+           VLAN Mode: access, Access VLAN: 21
+
+           Rate collection interval: 300 seconds
+           RX
+              123456 input packets   789012345 bytes
+              0 input error          0 dropped
+              0 CRC/FCS              0 multicast
+           TX
+              654321 output packets  912345678 bytes
+              0 input error          0 dropped
+              0 collision
+        parser_notes: |
+          Free-form labeled blocks. Existing `parse_interface_stats`
+          extracts:
+            - `Interface X is (up|down)` → status.
+            - `Admin state is (up|down)` → maps to `administratively down`
+              when admin=down; protocol_status mirrors status.
+            - `Description : <text>`.
+            - RX/TX rates from "X (bps|Kbps|Mbps|Gbps)" patterns
+              (greedy DOTALL match — first hit per direction wins).
+            - Packet/error/CRC counters from `\d+ input packets`,
+              `\d+ output packets`, `\d+ input errors`, `\d+ output errors`,
+              `\d+ CRC|crc`.
+          Counter format is per-line; columns are NOT space-aligned across
+          firmware versions, hence the loose anchored regexes.
+        config_required: ""
+        notes: |
+          Adjusted output formatting between 10.06 and 10.10 (extra blank
+          lines, different "Rate collection interval" placement). The
+          existing parser is intentionally tolerant of both.
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "/rest/v10.13/system/interfaces/{interface}?depth=2&selector=status"
+        firmware_required: ">=10.04"
+      gnmi:
+        path: "/interfaces/interface[name={interface}]/state/counters"
+        firmware_required: ">=10.17"
+
+  - type: CIVIC_LOCATION
+    description: "Display LLDP-MED civic location config (per-interface)"
+    versions:
+      - applies_to: ">=10.05"
+        cli: "show running-config interface {interface}"
+        sample_output: |
+          interface 1/1/24
+              ...
+              lldp med-location civic-location "Lobby East"
+        parser_notes: |
+          AOS-CX inlines the civic-location reference inside the interface
+          stanza (no separate `show lldp med location` table). Existing
+          `parse_interface_configs` extracts it via
+          `lldp med-location civic-location "?<name>"?`.
+        config_required: |
+          lldp run
+          lldp select-tlv med-location
+        notes: |
+          The civic-location *definition* (the country code + civic-address
+          identifier values) lives at global config under
+          `lldp med-location civic-location identifier <NAME>`. The catalog
+          captures only the per-interface reference, which is what the
+          engine cares about for compliance audit. Available on every
+          modern AOS-CX release (10.05+).
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "/rest/v10.13/system/interfaces/{interface}/lldp_med_location?depth=2"
+        firmware_required: ">=10.10"
+      gnmi: null
+
+  - type: VLAN_LIST
+    description: "List all VLANs on the switch"
+    versions:
+      - applies_to: ">=10.04"
+        cli: "show vlan"
+        sample_output: |
+          VLAN  Name                              Status  Reason          Type     Interfaces
+          ----- --------------------------------- ------- --------------- -------- ----------
+          1     DEFAULT_VLAN_1                    up      ok              default  1/1/3-1/1/4
+          21    DATA                              up      ok              static   1/1/1-1/1/48
+          99    VOICE                             up      ok              static   1/1/1-1/1/48
+        parser_notes: |
+          Existing `parse_vlan_brief` matches `^(\d+)\s+(\S+)\s+(up|down)`
+          per line and skips VLAN 1 (default; not actionable for
+          compliance). The `Reason`/`Type`/`Interfaces` columns are
+          ignored. Type values include `default`, `static`, `dynamic`,
+          `port-access`.
+        config_required: ""
+        notes: |
+          VLAN 1 always shows as `DEFAULT_VLAN_1` and is filtered. If a
+          deployment renames it (rare on AOS-CX) the filter still catches
+          it by ID.
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "/rest/v10.13/system/vlans?depth=2"
+        firmware_required: ">=10.04"
+      gnmi:
+        path: "/network-instances/network-instance[name=default]/vlans/vlan"
+        firmware_required: ">=10.17"
+
+  - type: SVI_CONFIG
+    description: "SVI / L3 interface running-config sections (per-VLAN L3 settings)"
+    versions:
+      - applies_to: ">=10.04"
+        cli: "show running-config interface vlan"
+        sample_output: |
+          interface vlan 21
+              vsx-sync active-gateways
+              ip address 10.1.21.1/24
+              active-gateway ip mac 12:00:00:00:01:00
+              active-gateway ip 10.1.21.254
+              ip helper-address 10.10.0.10
+              ip igmp enable
+              ip pim-sparse enable
+        parser_notes: |
+          Existing `parse_svi_config` splits on `interface vlan N` headers
+          (note the SPACE between `vlan` and the ID — distinct from
+          `interface vlanN` which appears in some other contexts).
+          Extracted fields:
+            - `ip address <CIDR>` → `svi_ip_address` (always CIDR on
+              AOS-CX; do NOT strip mask).
+            - `vsx-sync active-gateways` → `vsx_sync` flag.
+            - `active-gateway ip mac <MAC>` → `active_gateway_mac`.
+            - `active-gateway ip <IPv4>` → `active_gateway_ip`.
+            - `ip helper-address <IPv4>` (multiple) → `dhcp_helpers` list.
+            - `ip igmp enable` → `igmp_enabled`.
+            - `ip pim-sparse enable` → `pim_sparse_enabled`.
+            - bare `shutdown` → `svi_status = shutdown` else `up`.
+        config_required: ""
+        notes: |
+          AOS-CX active-gateway is the active/active equivalent of HSRP/VRRP
+          and is a VSX-pair feature. Some single-chassis deployments still
+          configure it (idempotent) — the parser captures whichever fields
+          are present.
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "/rest/v10.13/system/vrfs/{vrf}/vlan_interfaces?depth=3"
+        firmware_required: ">=10.04"
+      gnmi: null
+
+  - type: STP_VLAN_LIST
+    description: "List of VLANs with spanning-tree enabled / participating"
+    versions:
+      - applies_to: ">=10.04"
+        cli: "show spanning-tree"
+        sample_output: |
+          Spanning tree status: Enabled  Protocol: RPVST
+
+          VLAN 1
+            Root ID    Priority    : 32769
+                       MAC-Address : 90:20:c2:24:60:00
+
+          VLAN 21
+            Root ID    Priority    : 32789
+                       MAC-Address : 90:20:c2:24:60:00
+            Bridge ID  Priority    : 32789
+                       MAC-Address : 90:20:c2:24:60:18
+
+            Port            Role           State      Cost     Priority  Type
+            1/1/1           Designated     Forwarding 20000    128       point_to_point
+        parser_notes: |
+          Existing `parse_spanning_tree_vlans` extracts VLAN IDs by
+          regex `VLAN\s+(\d+)` across the whole output and returns a
+          set. Doesn't capture priority/role/state — VLAN-membership
+          presence is all the engine currently needs.
+        config_required: |
+          spanning-tree                  # global enable
+          spanning-tree mode rapid-pvst  # AOS-CX defaults to RPVST
+        notes: |
+          AOS-CX requires per-VLAN STP enablement (`spanning-tree vlan N`)
+          for non-default VLANs — this is a Cisco-vs-Aruba gotcha that
+          NetCaster's `get_vlan_create_commands` handles automatically.
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "/rest/v10.13/system/stp_config?depth=2"
+        firmware_required: ">=10.10"
+      gnmi: null
+
+  - type: HARDWARE_IDENTITY
+    description: "Stable hardware identity (chassis serial, base MAC, VSX peer serials)"
+    versions:
+      - applies_to: ">=10.04"
+        cli: |
+          show system
+          show vsx status
+        sample_output: |
+          # ── show system ──
+          Hostname             : sw-core-01
+          System Description   : Aruba JL635A 10.13.1000
+          System Contact       :
+          System Location      :
+
+          Chassis Info
+            Product Name       : JL635A Aruba 8325-48Y8C
+            Chassis Serial Nbr : TW98KM003P
+            Base MAC Address   : 9020c2-bced00
+            Number of MACs     : 256
+            Max Interfaces     : 56
+            Max Transmit Unit  : 9198
+
+          # ── show vsx status (when VSX configured) ──
+          VSX Operational State
+            ISL channel        : In-Sync
+            ISL Mgmt channel   : operational
+            Config Sync Status : In-Sync
+            NAE                : Active
+            HTTPS Server       : peer-reachable
+          Peer
+            Hostname           : sw-core-02
+            Serial             : TW98KM003Q
+        parser_notes: |
+          Composite call. Existing `get_hardware_identity` does:
+            1. `show system` → regex `Base MAC(\s+Address)?\s*:\s*(...)`
+               accepting AOS-CX's native `xxxxxx-xxxxxx` (6-6 dashed) format
+               OR colon/dot/standard-dash variants. Then
+               `(?:Chassis\s+Serial\s+Nbr|Serial\s+Number)\s*:\s*(\S+)`
+               for chassis serial.
+            2. `show vsx status` → if `VSX Operational State` is present,
+               attempt `Peer.*?Serial\s*[:\s]\s*(\S+)` (DOTALL) to grab
+               the peer chassis serial. Tolerant of missing field across
+               builds.
+          Returns `{serial_number, base_mac, stack_member_serials}`.
+          On a VSX pair, both serials populate `stack_member_serials`
+          so rediscovery from either chassis re-matches on overlap.
+        config_required: ""
+        notes: |
+          AOS-CX has no "stack" in the Cisco IOS sense; the closest
+          equivalent for redundancy is VSX (active/active two-chassis
+          pair). Both chassis have independent serials but a logical
+          identity at the dataplane.
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "/rest/v10.13/system?attributes=hostname,product_info,platform_name&depth=2"
+        firmware_required: ">=10.04"
+      gnmi:
+        path: "/components/component[name=Chassis]/state"
+        firmware_required: ">=10.17"
+
+  - type: HOSTNAME
+    description: "The switch's configured hostname"
+    versions:
+      - applies_to: ">=10.04"
+        cli: "show hostname"
+        sample_output: |
+          sw-core-01
+        parser_notes: |
+          Single-line bare hostname output. The engine today reads hostname
+          from netmiko's prompt parsing; this CLI is the explicit fallback.
+          Also surfaced as `Hostname : <name>` inside `show system`.
+        config_required: ""
+        notes: |
+          Available on all 10.x AOS-CX releases.
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "/rest/v10.13/system?attributes=hostname"
+        firmware_required: ">=10.04"
+      gnmi:
+        path: "/system/state/hostname"
+        firmware_required: ">=10.17"
+
+  - type: VERSION
+    description: "Firmware version string (CRITICAL for catalog version selection)"
+    versions:
+      - applies_to: ">=10.04"
+        cli: "show version"
+        sample_output: |
+          ARUBA Operating System Software.
+          ArubaOS-CX
+          (c) Copyright 2017-2026 Hewlett Packard Enterprise Development LP
+
+          Version      : FL.10.13.1000
+          Build Date   : 2024-03-15 09:42:11 PDT
+          Build ID     : ArubaOS-CX:FL.10.13.1000:abcdef0:202403150942
+          Build SHA    : abcdef0123456789
+
+          Active Image : primary
+          Service OS Version : FL.01.07.0002
+          BIOS Version : FL.01.0002
+        parser_notes: |
+          Free-form key/value. The version line is `Version : <PREFIX>.<MAJ>.<MIN>.<BUILD>`
+          where the prefix encodes the platform family:
+            - FL.* → 6300/6400 series
+            - GL.* → 8320/8325 series
+            - LL.* → 8400 series
+            - ML.* → 8360 / 8100 series
+            - DL.* → 6000/6100 series
+            - PL.* → 9300 series
+            - QL.* → 10000 series
+          For catalog version-matching, normalize on the dotted release
+          number AFTER the family prefix (e.g., `FL.10.13.1000` → `10.13`).
+        config_required: ""
+        notes: |
+          The catalog's version-aware selection MUST tolerate AOS-CX's
+          family-prefixed version strings. Stripping the leading
+          `[A-Z]{2}\.` is the recommended normalization. This is
+          AOS-CX-specific and a known catalog-loader gotcha (tracked in
+          tech-debt #18 implementation).
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "/rest/v10.13/system?attributes=software_version,software_info"
+        firmware_required: ">=10.04"
+      gnmi:
+        path: "/system/state/software-version"
+        firmware_required: ">=10.17"
+
+  # ─── Port-level writes ────────────────────────────────────────────
+
+  - type: PORT_SHUTDOWN
+    description: "Administratively disable an interface"
+    versions:
+      - applies_to: ">=10.04"
+        cli: |
+          interface {interface}
+          shutdown
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Multi-line config-mode command. The engine wraps this in netmiko's
+          `send_config_set`. No `enable` step — AOS-CX has a unified privilege
+          model (operator/admin) and `configure terminal` is implicit when
+          netmiko sends config commands.
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "PUT /rest/v10.13/system/interfaces/{interface}  (admin: down)"
+        firmware_required: ">=10.04"
+      gnmi: null
+
+  - type: PORT_NO_SHUTDOWN
+    description: "Administratively enable an interface"
+    versions:
+      - applies_to: ">=10.04"
+        cli: |
+          interface {interface}
+          no shutdown
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: ""
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "PUT /rest/v10.13/system/interfaces/{interface}  (admin: up)"
+        firmware_required: ">=10.04"
+      gnmi: null
+
+  - type: PORT_VLAN_ASSIGN
+    description: "Set the access VLAN of an interface (with edge-port hardening)"
+    versions:
+      - applies_to: ">=10.04"
+        cli: |
+          interface {interface}
+          no routing
+          vlan access {vlan_id}
+          spanning-tree bpdu-guard
+          spanning-tree port-type admin-edge
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Composite — the existing `get_vlan_assign_commands` does NOT just
+          set the access VLAN; it also forces L2 mode (`no routing`),
+          enables BPDU guard, and marks the port as admin-edge. This is
+          intentional NetCaster policy: any port we're touching is by
+          definition an access port that should not become an STP root
+          and should drop unexpected BPDUs. Diverging from this requires
+          an ADR — it's a load-bearing safety property of the write path.
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "PUT /rest/v10.13/system/interfaces/{interface}  (vlan_tag, vlan_mode=access)"
+        firmware_required: ">=10.04"
+      gnmi: null
+
+  - type: PORT_POE_OFF
+    description: "Disable PoE on an interface"
+    versions:
+      - applies_to: ">=10.04"
+        cli: |
+          interface {interface}
+          no power-over-ethernet
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          AOS-CX uses `power-over-ethernet` (full word, hyphenated) — NOT
+          Cisco's `power inline`. PoE-cycle is implemented as an off-then-on
+          sequence at the engine layer (no native one-shot bounce command).
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "PUT /rest/v10.13/system/interfaces/{interface}/poe_interface  (admin_disable: true)"
+        firmware_required: ">=10.08"
+      gnmi: null
+
+  - type: PORT_POE_ON
+    description: "Enable PoE on an interface"
+    versions:
+      - applies_to: ">=10.04"
+        cli: |
+          interface {interface}
+          power-over-ethernet
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: ""
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "PUT /rest/v10.13/system/interfaces/{interface}/poe_interface  (admin_disable: false)"
+        firmware_required: ">=10.08"
+      gnmi: null
+
+  - type: PORT_POLICY_PUSH
+    description: "Composite port policy: portfast, BPDU guard, storm control, description"
+    versions:
+      - applies_to: ">=10.04,<FL.01.17"
+        cli: |
+          interface {interface}
+          spanning-tree port-type admin-edge
+          spanning-tree bpdu-guard
+          rate-limit broadcast {kbps} kbps
+          rate-limit multicast {kbps} kbps
+          rate-limit unknown-unicast {kbps} kbps
+          description {description}
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Build by `get_port_config_commands`. Storm control on older
+          firmware (pre-FL.01.17 on the 6300/6400 series; we approximate
+          this as "AOS-CX builds before mid-2022") MUST be expressed in
+          `kbps`. The engine converts the operator's percentage to kbps
+          assuming a 1Gbps port (kbps = 1_000_000 * pct / 100). This is a
+          known approximation for 10G/25G ports — captured in
+          tech-debt.md.
+      - applies_to: ">=FL.01.17"
+        cli: |
+          interface {interface}
+          spanning-tree port-type admin-edge
+          spanning-tree bpdu-guard
+          rate-limit broadcast {percent} percent
+          rate-limit multicast {percent} percent
+          rate-limit unknown-unicast {percent} percent
+          description {description}
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Newer firmware (FL.01.17+ on 6300/6400; equivalent builds on other
+          families) accepts percentage syntax. The engine continues to emit
+          kbps for cross-firmware uniformity — switching to percent is a
+          future cleanup (tech-debt). Both forms parse correctly via the
+          existing parser's two-branch regex (percent OR kbps).
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "PUT /rest/v10.13/system/interfaces/{interface}  (composite write)"
+        firmware_required: ">=10.04"
+      gnmi: null
+
+  # ─── Provisioning writes ──────────────────────────────────────────
+
+  - type: VLAN_CREATE
+    description: "Create a VLAN definition (vid + optional name + per-VLAN STP)"
+    versions:
+      - applies_to: ">=10.04"
+        cli: |
+          vlan {vlan_id}
+           name {name}
+          spanning-tree vlan {vlan_id}
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          AOS-CX-specific gotcha: per-VLAN spanning-tree is NOT enabled
+          automatically when the VLAN is created (Cisco enables it by
+          default). NetCaster's `get_vlan_create_commands` always emits
+          the explicit `spanning-tree vlan N` unless the caller opts out.
+          Forgetting this on AOS-CX results in a VLAN that participates in
+          forwarding but doesn't run STP — a real loop risk in production.
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "POST /rest/v10.13/system/vlans  (id={vlan_id}, name={name})"
+        firmware_required: ">=10.04"
+      gnmi: null
+
+  - type: SVI_CREATE
+    description: "Create SVI for a VLAN with optional IP / active-gateway / DHCP relay / IGMP / PIM"
+    versions:
+      - applies_to: ">=10.04"
+        cli: |
+          interface vlan{vlan_id}
+           vsx-sync active-gateways
+           ip address {cidr}
+           active-gateway ip mac {gateway_mac}
+           active-gateway ip {gateway_ip}
+           ip helper-address {ip_address}
+           ip igmp enable
+           ip pim-sparse enable
+           no shutdown
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          The engine's `get_svi_create_commands` emits each line
+          conditionally (only if the corresponding param is supplied).
+          IP address is CIDR (e.g., `10.1.21.1/24`) — AOS-CX requires the
+          mask in CIDR form on `ip address`, unlike Cisco's
+          `ip address X Y` form.
+
+          `active-gateway` is the AOS-CX active/active L3 redundancy
+          mechanism (functionally analogous to anycast gateway). Requires
+          a VSX pair to actually do active/active; on a single chassis
+          the command is accepted and idempotent.
+
+          `vsx-sync active-gateways` must be configured BEFORE the
+          active-gateway lines so the peer chassis picks up the change
+          via the VSX ISL.
+
+          DHCP relay supports up to 8 helpers per SVI (10.10+).
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "POST /rest/v10.13/system/vrfs/{vrf}/vlan_interfaces"
+        firmware_required: ">=10.04"
+      gnmi: null
+
+  - type: STP_VLAN_ENABLE
+    description: "Enable spanning-tree for a specific VLAN"
+    versions:
+      - applies_to: ">=10.04"
+        cli: "spanning-tree vlan {vlan_id}"
+        sample_output: ""
+        parser_notes: ""
+        config_required: ""
+        notes: |
+          Single-line global config command (no `interface` context).
+          Required separately on AOS-CX for every non-default VLAN — see
+          VLAN_CREATE notes.
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "PUT /rest/v10.13/system/stp_config  (vlan_list update)"
+        firmware_required: ">=10.10"
+      gnmi: null
+
+  # ─── Persistence ──────────────────────────────────────────────────
+
+  - type: SAVE_CONFIG
+    description: "Persist running-config to startup-config"
+    versions:
+      - applies_to: ">=10.04"
+        cli: "write memory"
+        sample_output: |
+          Success
+        parser_notes: |
+          Single-line `Success` (or an error string on failure). The engine
+          treats any non-empty output without `error|fail` as success.
+        config_required: ""
+        notes: |
+          `write memory` is an alias for `copy running-config startup-config`
+          on AOS-CX; both produce identical results. The engine uses
+          `write memory` for brevity. Unlike Junos, AOS-CX has no
+          two-stage commit — once you save, the change is durable.
+    protocol_alternatives:
+      netconf: null
+      restconf:
+        url_path: "PUT /rest/v10.13/fullconfigs/startup-config  (body: running-config)"
+        firmware_required: ">=10.04"
+      gnmi: null

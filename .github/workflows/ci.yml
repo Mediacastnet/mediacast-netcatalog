@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  rust:
+    name: Rust ${{ matrix.toolchain }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        toolchain: [stable, "1.78"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Format check
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --all-targets --no-default-features -- -D warnings
+      - name: Build (default features)
+        run: cargo build --no-default-features
+      - name: Test (default features)
+        run: cargo test --no-default-features
+      - name: Build (bin feature)
+        run: cargo build --no-default-features --features bin
+      - name: Run example
+        run: cargo run --example basic_lookup --no-default-features
+
+  python:
+    name: Python wheel build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install maturin
+        run: pip install "maturin>=1.5,<2.0"
+      - name: Build wheel
+        run: maturin build --release --features python --out dist
+      - name: Install built wheel
+        shell: bash
+        run: pip install --no-index --find-links dist mediacast-netcatalog
+      - name: Smoke test bindings
+        run: |
+          python -c "from mediacast_netcatalog._native import Catalog; c = Catalog.load_bundled(); print(c.vendors())"
+
+  yaml-lint:
+    name: Catalog YAML lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install yamllint
+        run: pip install yamllint
+      - name: Lint catalog/
+        run: yamllint -d "{extends: relaxed, rules: {line-length: disable}}" catalog/
