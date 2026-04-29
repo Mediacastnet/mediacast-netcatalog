@@ -79,6 +79,13 @@ python -c "from mediacast_netcatalog import Catalog; print(Catalog.load_bundled(
 3. Add an entry to `CHANGELOG.md` under `[Unreleased]`.
 4. CI must pass on Linux + macOS + Windows.
 
+## Releasing
+
+See [`RELEASING.md`](RELEASING.md) for the release process. Maintainers
+cut releases by tagging `vX.Y.Z` on `main`; the GitHub Actions workflow
+handles `cargo publish`, multi-platform wheel builds + PyPI upload, and
+the GitHub Release announcement automatically.
+
 ## License
 
 By contributing, you agree your contribution is dual-licensed under
