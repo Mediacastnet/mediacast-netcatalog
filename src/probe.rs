@@ -1,4 +1,4 @@
-//! Protocol-capability probe — stdlib-only TCP fingerprinting.
+//! Protocol-capability probe — synchronous TCP + TLS fingerprinting.
 //!
 //! Fingerprints which programmatic interfaces a network device exposes:
 //!
@@ -7,19 +7,18 @@
 //!   probe-time signal available without authenticating.
 //! - **gNMI** — TCP/9339 connect. gRPC-over-TLS; the port is reserved
 //!   for gNMI by IANA, so a successful TCP connect is sufficient signal
-//!   for v0.2. v0.3 may add a proper TLS handshake check.
-//! - **RESTCONF** — TCP/443 connect. **Necessary but not sufficient**:
-//!   a switch's regular HTTPS management UI also lives on 443, so this
-//!   probe means "RESTCONF is *possible* if also configured" rather
-//!   than "RESTCONF is enabled." v0.3 adds a proper HTTPS GET to
-//!   `/restconf` (with self-signed-cert tolerance) for authoritative
-//!   detection.
+//!   for v0.3. A future release may add a proper TLS handshake check.
+//! - **RESTCONF** *(upgraded in v0.3)* — HTTPS/443 GET to `/restconf`
+//!   with self-signed-cert tolerance. Distinguishes "RESTCONF enabled"
+//!   from "vendor management UI on 443" by parsing the response status
+//!   code: 200/401/403/5xx → RESTCONF up; 404 → not enabled. Falls back
+//!   to the v0.2 TCP-port-open behavior on TLS handshake failure.
 //! - **SSH banner** — TCP/22, read first line up to `\r\n`. Captured
 //!   raw for downstream parsing (vendor + sometimes firmware hints).
 //!
-//! All probes are **synchronous and stdlib-only** — no async runtime, no
-//! TLS dependency, no HTTP client. PyO3 bindings release the GIL during
-//! the blocking I/O. Total wheel-size impact is near-zero.
+//! Implementation is **synchronous** — no async runtime. Uses rustls
+//! directly for the RESTCONF HTTPS request (the rest is stdlib TCP).
+//! PyO3 bindings release the GIL during blocking I/O.
 //!
 //! Each probe is independent and best-effort. Per-protocol failures land
 //! in [`ProbeReport::diagnostics`]; the report itself never errors at
@@ -27,8 +26,9 @@
 
 use crate::error::Result;
 use serde::{Deserialize, Serialize};
-use std::io::Read;
+use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 /// Default per-probe connect + read timeout.
@@ -161,15 +161,35 @@ pub fn probe_device(host: &str, vendor: &str, cfg: &ProbeConfig) -> Result<Probe
     }
 
     if !cfg.skipped("restconf") {
-        report.restconf_available = Some(match probe_tcp_open(host, RESTCONF_PORT, cfg.timeout) {
-            Ok(()) => true,
+        match probe_restconf(host, RESTCONF_PORT, cfg.timeout) {
+            Ok(RestconfStatus::Enabled(code)) => {
+                report.restconf_available = Some(true);
+                report
+                    .diagnostics
+                    .push(format!("restconf:{RESTCONF_PORT} HTTP {code} (RESTCONF responding)"));
+            }
+            Ok(RestconfStatus::NotEnabled(code)) => {
+                report.restconf_available = Some(false);
+                report.diagnostics.push(format!(
+                    "restconf:{RESTCONF_PORT} HTTP {code} (HTTPS reachable but /restconf not present)"
+                ));
+            }
+            Ok(RestconfStatus::PortOpenTlsFailed(reason)) => {
+                // Couldn't complete TLS handshake but TCP port answers.
+                // v0.2 behavior: treat as positive (port-open is a weak
+                // signal but better than false-negative).
+                report.restconf_available = Some(true);
+                report.diagnostics.push(format!(
+                    "restconf:{RESTCONF_PORT} TCP open, TLS probe inconclusive ({reason}); falling back to v0.2 port-open semantic"
+                ));
+            }
             Err(e) => {
+                report.restconf_available = Some(false);
                 report
                     .diagnostics
                     .push(format!("restconf:{RESTCONF_PORT} {e}"));
-                false
             }
-        });
+        }
     }
 
     report.elapsed_ms = start.elapsed().as_millis();
@@ -244,6 +264,169 @@ fn probe_ssh_banner(host: &str, port: u16, timeout: Duration) -> std::io::Result
         Ok(Some(line))
     } else {
         Ok(None)
+    }
+}
+
+// ── RESTCONF HTTPS probe (v0.3) ─────────────────────────────────────
+
+/// Result of a RESTCONF probe.
+#[derive(Debug, Clone)]
+enum RestconfStatus {
+    /// HTTPS GET /restconf returned a status that means RESTCONF is
+    /// responding (200 = OK, 401/403 = auth required, 5xx = server
+    /// error -- all imply the resource exists). Carries the HTTP code.
+    Enabled(u16),
+    /// HTTPS GET /restconf returned a status that means the path
+    /// doesn't exist (404 = explicit, others may be vendor-specific
+    /// "no such endpoint"). HTTPS reachable but RESTCONF not enabled.
+    NotEnabled(u16),
+    /// TCP port answered but the TLS handshake or HTTP request failed.
+    /// Falls back to the v0.2 port-open semantic at the call site
+    /// (treats as positive -- weak signal but avoids false-negatives
+    /// on devices with quirky TLS implementations).
+    PortOpenTlsFailed(String),
+}
+
+/// Probe RESTCONF via HTTPS GET to /restconf. Returns:
+/// - `Enabled(code)` when the response is 200/401/403/5xx (RESTCONF up)
+/// - `NotEnabled(code)` when the response is 404 or another not-found
+/// - `PortOpenTlsFailed(reason)` when TCP works but TLS/HTTP doesn't
+/// - `Err(io)` when TCP itself fails (port unreachable / DNS)
+///
+/// Self-signed certs are accepted -- network gear universally uses
+/// self-signed; cert validation would make this probe useless.
+fn probe_restconf(host: &str, port: u16, timeout: Duration) -> std::io::Result<RestconfStatus> {
+    // Step 1: TCP connect. If this fails, port unreachable -- err out.
+    let mut stream = connect(host, port, timeout)?;
+
+    // Step 2: TLS handshake + HTTP/1.1 GET. Any failure here downgrades
+    // to PortOpenTlsFailed so the caller can apply v0.2-style semantics.
+    let server_name = match rustls_pki_types::ServerName::try_from(host.to_owned()) {
+        Ok(n) => n,
+        Err(e) => return Ok(RestconfStatus::PortOpenTlsFailed(format!("invalid SNI '{host}': {e}"))),
+    };
+
+    let config = make_insecure_client_config();
+    let mut conn = match rustls::ClientConnection::new(config, server_name) {
+        Ok(c) => c,
+        Err(e) => return Ok(RestconfStatus::PortOpenTlsFailed(format!("rustls init: {e}"))),
+    };
+
+    let request = format!(
+        "GET /restconf HTTP/1.1\r\nHost: {host}\r\nUser-Agent: mediacast-netcatalog-probe/0.3\r\nAccept: application/yang-data+json\r\nConnection: close\r\n\r\n"
+    );
+
+    // Drive the TLS handshake + HTTP I/O via rustls::Stream.
+    let status_code = {
+        let mut tls = rustls::Stream::new(&mut conn, &mut stream);
+        if let Err(e) = tls.write_all(request.as_bytes()) {
+            return Ok(RestconfStatus::PortOpenTlsFailed(format!("TLS write: {e}")));
+        }
+
+        let mut buf = [0u8; 256];
+        let n = match tls.read(&mut buf) {
+            Ok(n) => n,
+            Err(e) => {
+                return Ok(RestconfStatus::PortOpenTlsFailed(format!("TLS read: {e}")));
+            }
+        };
+        if n < 12 {
+            return Ok(RestconfStatus::PortOpenTlsFailed(format!(
+                "TLS read returned {n} bytes; expected at least an HTTP status line"
+            )));
+        }
+        // Status line: "HTTP/1.1 200 OK" -- second token is the code.
+        let line = std::str::from_utf8(&buf[..n.min(64)]).unwrap_or("");
+        let code: u16 = line
+            .split(' ')
+            .nth(1)
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0);
+        if code == 0 {
+            return Ok(RestconfStatus::PortOpenTlsFailed(format!(
+                "could not parse HTTP status from {line:?}"
+            )));
+        }
+        code
+    };
+
+    // Step 3: classify.
+    // 200 = OK, 401/403 = auth required (still up), 5xx = server error
+    // (still up, possibly misconfigured) -- all positive signals.
+    // 404 = explicit not-found. 4xx-other = treat as not-enabled.
+    if status_code == 200 || status_code == 401 || status_code == 403 || (500..=599).contains(&status_code) {
+        Ok(RestconfStatus::Enabled(status_code))
+    } else {
+        Ok(RestconfStatus::NotEnabled(status_code))
+    }
+}
+
+/// rustls ClientConfig that accepts any server certificate.
+///
+/// **Probe-only.** Network gear universally uses self-signed certs; a
+/// validating client would always fail and make the probe useless. Real
+/// authenticated calls in NetCaster's engine use Netmiko/SSH (not HTTPS),
+/// so this lax verifier doesn't leak into production credential paths.
+fn make_insecure_client_config() -> Arc<rustls::ClientConfig> {
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let config = rustls::ClientConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        .expect("rustls: safe default protocol versions")
+        .dangerous()
+        .with_custom_certificate_verifier(Arc::new(AcceptAnyCert))
+        .with_no_client_auth();
+    Arc::new(config)
+}
+
+/// A `ServerCertVerifier` that accepts any certificate. **Probe-only**;
+/// see `make_insecure_client_config` for the rationale.
+#[derive(Debug)]
+struct AcceptAnyCert;
+
+impl rustls::client::danger::ServerCertVerifier for AcceptAnyCert {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &rustls_pki_types::CertificateDer<'_>,
+        _intermediates: &[rustls_pki_types::CertificateDer<'_>],
+        _server_name: &rustls_pki_types::ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: rustls_pki_types::UnixTime,
+    ) -> std::result::Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
+        Ok(rustls::client::danger::ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        _message: &[u8],
+        _cert: &rustls_pki_types::CertificateDer<'_>,
+        _dss: &rustls::DigitallySignedStruct,
+    ) -> std::result::Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        _message: &[u8],
+        _cert: &rustls_pki_types::CertificateDer<'_>,
+        _dss: &rustls::DigitallySignedStruct,
+    ) -> std::result::Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+        use rustls::SignatureScheme::*;
+        vec![
+            RSA_PKCS1_SHA256,
+            RSA_PKCS1_SHA384,
+            RSA_PKCS1_SHA512,
+            ECDSA_NISTP256_SHA256,
+            ECDSA_NISTP384_SHA384,
+            ECDSA_NISTP521_SHA512,
+            RSA_PSS_SHA256,
+            RSA_PSS_SHA384,
+            RSA_PSS_SHA512,
+            ED25519,
+        ]
     }
 }
 

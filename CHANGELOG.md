@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0-dev] — 2026-05-04
+
+### Added
+
+- **RESTCONF content discrimination** — closes the documented v0.2
+  limitation where `restconf_available: true` only meant "TCP/443 is
+  open" (which also matched any vendor management UI). v0.3 issues an
+  HTTPS GET to `/restconf` with self-signed-cert tolerance and parses
+  the response status:
+  - `200 OK` / `401 Unauthorized` / `403 Forbidden` / `5xx` → `Enabled`
+  - `404 Not Found` / other 4xx → `NotEnabled`
+  - TCP-open but TLS or HTTP fails → falls back to v0.2's port-open
+    semantic (still positive, but flagged in diagnostics)
+- Diagnostic messages now include the actual HTTP status code so
+  operators can distinguish between "auth required" (401), "not
+  configured" (404), and "vendor portal" (often 200 to a management
+  page rather than a RESTCONF response).
+
+### Changed
+
+- Probe is no longer "stdlib-only" — `rustls` (with the ring crypto
+  provider) is now a hard dependency for the RESTCONF HTTPS handshake.
+  The other three probes (NETCONF, gNMI port, SSH banner) still use
+  stdlib TCP only.
+- Module docstring updated; the v0.2 "stdlib-only" claim removed.
+
+### Known limitations carried into v0.4
+
+- gNMI is still TCP-port-open. A proper TLS handshake check on 9339
+  (without a full gRPC client) is small additional work and lands in
+  the next release.
+- The probe's HTTP parsing reads only the first 256 bytes and extracts
+  the status line. Sufficient for classification; doesn't attempt to
+  parse the body or the full headers. If a vendor's HTTPS server takes
+  >256 bytes for the status line, the probe falls back to
+  `PortOpenTlsFailed`.
+
+### Security note
+
+The HTTPS probe explicitly accepts any server certificate
+(`make_insecure_client_config` + `AcceptAnyCert`) because network gear
+universally uses self-signed certs. **This applies only to the probe
+path**; NetCaster's authenticated device I/O is via Netmiko/SSH, which
+uses its own credential and host-key verification. The lax verifier
+does not leak into production credential paths.
+
 ## [0.2.0] — 2026-04-29
 
 ### Added

@@ -53,10 +53,11 @@ which programmatic interfaces a real device actually exposes.
 
 ## Status
 
-**v0.2 — research data + working library.** Citation-backed catalog YAML
-for seven vendors. Rust loader + version matcher + sync stdlib-only
-protocol probe, all with PyO3 Python bindings. First production consumer
-is [Mediacast NetCaster](https://github.com/Mediacastnet/netcaster).
+**v0.3-dev — research data + working library + RESTCONF discrimination.**
+Citation-backed catalog YAML for seven vendors. Rust loader + version
+matcher + sync protocol probe with self-signed-cert-tolerant HTTPS for
+authoritative RESTCONF detection (v0.3). PyO3 Python bindings throughout.
+First production consumer is [Mediacast NetCaster](https://github.com/Mediacastnet/netcaster).
 **API may still evolve toward v1.0; pin a specific minor version.**
 
 ## Quick start (Rust)
